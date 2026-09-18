@@ -1,10 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Status } from "@/components/Status";
 import { api } from "@/lib/api";
-import { buildPrompt, assignQueueModes, type ModeFilter, type ReviewMode } from "@/lib/review-modes";
+import {
+  assignQueueModes,
+  buildPrompt,
+  isTypingAnswerCorrect,
+  typingReviewPayload,
+  type ModeFilter,
+  type ReviewMode,
+} from "@/lib/review-modes";
 import {
   previewSession,
   SESSION_LIMITS,
@@ -24,6 +31,7 @@ const FILTERS: Array<{ id: ModeFilter; label: string }> = [
   { id: "ko-meaning", label: "Korean → Meaning" },
   { id: "meaning-ko", label: "Meaning → Korean" },
   { id: "sentence", label: "Sentence" },
+  { id: "typing", label: "Typing" },
 ];
 
 export default function ReviewPage() {
@@ -34,7 +42,10 @@ export default function ReviewPage() {
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const typingInputRef = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState<SessionConfig>({
     limit: 10,
     mode: "mixed",
@@ -111,12 +122,21 @@ export default function ReviewPage() {
     () => (current ? buildPrompt(current, current.mode) : null),
     [current],
   );
+  const isTyping = current?.mode === "typing";
+  const typingCorrect = current ? isTypingAnswerCorrect(typed, current.korean) : false;
+
+  useEffect(() => {
+    if (!started || !isTyping || revealed) return;
+    typingInputRef.current?.focus();
+  }, [isTyping, revealed, started, current?.id]);
 
   function begin() {
     if (!pool) return;
     setQueue(startSession(pool, config, new Date()));
     setStarted(true);
     setRevealed(false);
+    setTyped("");
+    setSubmitted(false);
   }
 
   function reset() {
@@ -128,7 +148,16 @@ export default function ReviewPage() {
     setStarted(false);
     setQueue(null);
     setRevealed(false);
+    setTyped("");
+    setSubmitted(false);
     void loadPool(config.categoryId);
+  }
+
+  function submitTyping(event?: FormEvent) {
+    event?.preventDefault();
+    if (!current || revealed) return;
+    setSubmitted(true);
+    setRevealed(true);
   }
 
   const rate = useCallback(async (rating: Rating) => {
@@ -138,14 +167,20 @@ export default function ReviewPage() {
     try {
       await api("/api/review", {
         method: "POST",
-        body: JSON.stringify({
-          vocabularyId: current.id,
-          rating,
-          direction: current.mode,
-        }),
+        body: JSON.stringify(
+          current.mode === "typing"
+            ? typingReviewPayload(current.id, rating)
+            : {
+                vocabularyId: current.id,
+                rating,
+                direction: current.mode,
+              },
+        ),
       });
       setQueue((prev) => prev?.slice(1) ?? []);
       setRevealed(false);
+      setTyped("");
+      setSubmitted(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Review failed");
     } finally {
@@ -160,6 +195,7 @@ export default function ReviewPage() {
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (event.code === "Space") {
+        if (current?.mode === "typing") return;
         event.preventDefault();
         if (current && !revealed) setRevealed(true);
         return;
@@ -277,44 +313,113 @@ export default function ReviewPage() {
         emptyText="Session complete."
       >
         {current && content ? (
-          <>
-            <p className="muted">{content.hint}</p>
-            <button
-              className="card flashcard secondary"
-              type="button"
-              onClick={() => setRevealed(true)}
-            >
-              <div>
-                <p className="prompt">{content.prompt}</p>
-                {revealed ? (
-                  <>
-                    <p className="answer">{content.answer}</p>
-                    {content.extras.map((line) => (
-                      <p className="muted" key={line}>{line}</p>
-                    ))}
-                  </>
-                ) : (
-                  <p className="muted">Tap or press Space to show answer</p>
-                )}
-              </div>
-            </button>
-            {revealed ? (
-              <div className="ratings" style={{ marginTop: 12 }}>
-                <button className="again" disabled={busy} onClick={() => rate("again")}>
-                  Again <span className="kbd">1</span>
-                </button>
-                <button className="hard" disabled={busy} onClick={() => rate("hard")}>
-                  Hard <span className="kbd">2</span>
-                </button>
-                <button className="good" disabled={busy} onClick={() => rate("good")}>
-                  Good <span className="kbd">3</span>
-                </button>
-                <button className="easy" disabled={busy} onClick={() => rate("easy")}>
-                  Easy <span className="kbd">4</span>
-                </button>
-              </div>
-            ) : null}
-          </>
+          isTyping ? (
+            <>
+              <p className="muted">{content.hint}</p>
+              <section className="card flashcard" style={{ cursor: "default" }}>
+                <div>
+                  <p className="prompt">{content.prompt}</p>
+                  {revealed ? (
+                    <>
+                      <p className="muted">Your answer</p>
+                      <p className="answer">{typed.trim() ? typed : "—"}</p>
+                      <p className="muted">Correct Korean</p>
+                      <p className="answer">{content.answer}</p>
+                      {submitted ? (
+                        <p>
+                          <span className="badge">{typingCorrect ? "Correct" : "Incorrect"}</span>
+                        </p>
+                      ) : null}
+                      {content.extras.map((line) => (
+                        <p className="muted" key={line}>{line}</p>
+                      ))}
+                    </>
+                  ) : (
+                    <p className="muted">Type the Korean word, then Enter</p>
+                  )}
+                </div>
+              </section>
+              {!revealed ? (
+                <form className="form" style={{ marginTop: 12 }} onSubmit={submitTyping}>
+                  <label>
+                    Korean
+                    <input
+                      ref={typingInputRef}
+                      className="typing-input"
+                      autoFocus
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      enterKeyHint="done"
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                    />
+                  </label>
+                  <div className="row">
+                    <button type="submit">Submit</button>
+                    <button className="secondary" type="button" onClick={() => setRevealed(true)}>
+                      Show answer
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="ratings" style={{ marginTop: 12 }}>
+                  <button className="again" disabled={busy} onClick={() => rate("again")}>
+                    Again <span className="kbd">1</span>
+                  </button>
+                  <button className="hard" disabled={busy} onClick={() => rate("hard")}>
+                    Hard <span className="kbd">2</span>
+                  </button>
+                  <button className="good" disabled={busy} onClick={() => rate("good")}>
+                    Good <span className="kbd">3</span>
+                  </button>
+                  <button className="easy" disabled={busy} onClick={() => rate("easy")}>
+                    Easy <span className="kbd">4</span>
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="muted">{content.hint}</p>
+              <button
+                className="card flashcard secondary"
+                type="button"
+                onClick={() => setRevealed(true)}
+              >
+                <div>
+                  <p className="prompt">{content.prompt}</p>
+                  {revealed ? (
+                    <>
+                      <p className="answer">{content.answer}</p>
+                      {content.extras.map((line) => (
+                        <p className="muted" key={line}>{line}</p>
+                      ))}
+                    </>
+                  ) : (
+                    <p className="muted">Tap or press Space to show answer</p>
+                  )}
+                </div>
+              </button>
+              {revealed ? (
+                <div className="ratings" style={{ marginTop: 12 }}>
+                  <button className="again" disabled={busy} onClick={() => rate("again")}>
+                    Again <span className="kbd">1</span>
+                  </button>
+                  <button className="hard" disabled={busy} onClick={() => rate("hard")}>
+                    Hard <span className="kbd">2</span>
+                  </button>
+                  <button className="good" disabled={busy} onClick={() => rate("good")}>
+                    Good <span className="kbd">3</span>
+                  </button>
+                  <button className="easy" disabled={busy} onClick={() => rate("easy")}>
+                    Easy <span className="kbd">4</span>
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )
         ) : null}
       </Status>
       {queue?.length === 0 ? (

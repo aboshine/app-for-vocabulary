@@ -155,6 +155,11 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .answer { font-size: 1.4rem; margin: 8px 0 0; overflow-wrap: anywhere; }
 .ratings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.typing-input {
+  font-size: 1.35rem;
+  min-height: 56px;
+  text-align: center;
+}
 .kbd { display: none; }
 
 .paste { min-height: 140px; width: 100%; }
@@ -212,6 +217,6 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   }
   .grid { grid-template-columns: repeat(3, 1fr); }
   .ratings { grid-template-columns: repeat(4, 1fr); }
-  .mode-grid { grid-template-columns: repeat(4, 1fr); }
+  .mode-grid { grid-template-columns: repeat(5, 1fr); }
   .kbd { display: inline; font-size: 0.75rem; opacity: 0.75; margin-left: 4px; }
 }

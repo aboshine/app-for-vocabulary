@@ -126,7 +126,7 @@ describe("buildSessionQueue", () => {
 
 describe("mixed mode session distribution", () => {
   it("rotates recall modes across the session", () => {
-    const words: ReviewWord[] = Array.from({ length: 4 }, (_, index) => ({
+    const words: ReviewWord[] = Array.from({ length: 5 }, (_, index) => ({
       id: String(index),
       korean: "물",
       meaning: "water",
@@ -139,6 +139,7 @@ describe("mixed mode session distribution", () => {
       "meaning-ko",
       "sentence-meaning",
       "sentence-completion",
+      "typing",
     ]);
   });
 });

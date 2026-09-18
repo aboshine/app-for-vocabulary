@@ -4,7 +4,9 @@ import { endOfDay, isDue, startOfDay, type LearningState } from "./srs";
 export const SESSION_LIMITS = [10, 20, 30, "all"] as const;
 export type SessionLimit = (typeof SESSION_LIMITS)[number];
 
-export interface SessionCard extends ReviewWord {
+/** SRS fields shared by vocabulary and grammar review queues. */
+export interface SessionSrsFields {
+  id: string;
   categoryId: string | null;
   learningState: LearningState;
   nextReviewAt: Date;
@@ -14,6 +16,8 @@ export interface SessionCard extends ReviewWord {
   goodCount: number;
   easyCount: number;
 }
+
+export interface SessionCard extends ReviewWord, SessionSrsFields {}
 
 export interface SessionConfig {
   limit: SessionLimit;
@@ -61,11 +65,14 @@ export function uniqueById<T extends { id: string }>(items: T[]): T[] {
   return unique;
 }
 
-function matchesCategory(card: SessionCard, categoryId: string): boolean {
+export type QueueConfig = Pick<SessionConfig, "limit" | "categoryId" | "includeNew"> &
+  Partial<Pick<SessionConfig, "mode">>;
+
+function matchesCategory(card: Pick<SessionSrsFields, "categoryId">, categoryId: string): boolean {
   return !categoryId || card.categoryId === categoryId;
 }
 
-function eligibleCards(cards: SessionCard[], config: SessionConfig, now: Date): SessionCard[] {
+function eligibleCards<T extends SessionSrsFields>(cards: T[], config: QueueConfig, now: Date): T[] {
   return uniqueById(
     cards.filter((card) => {
       if (!matchesCategory(card, config.categoryId)) return false;
@@ -78,7 +85,7 @@ function eligibleCards(cards: SessionCard[], config: SessionConfig, now: Date): 
   );
 }
 
-function byTimeThenDifficulty(a: SessionCard, b: SessionCard): number {
+function byTimeThenDifficulty<T extends SessionSrsFields>(a: T, b: T): number {
   const diff = difficultyScore(b) - difficultyScore(a);
   if (diff !== 0) return diff;
   const time = a.nextReviewAt.getTime() - b.nextReviewAt.getTime();
@@ -86,7 +93,7 @@ function byTimeThenDifficulty(a: SessionCard, b: SessionCard): number {
   return a.id.localeCompare(b.id);
 }
 
-export function sessionPriority(card: SessionCard, now: Date): 1 | 2 | 3 | 4 {
+export function sessionPriority(card: SessionSrsFields, now: Date): 1 | 2 | 3 | 4 {
   if (card.learningState === "new") return 4;
   if (isOverdue(card.nextReviewAt, now)) return 1;
   const hard = card.reviewCount > 0 && difficultyScore(card) >= 0.5;
@@ -95,7 +102,11 @@ export function sessionPriority(card: SessionCard, now: Date): 1 | 2 | 3 | 4 {
   return 4;
 }
 
-export function buildSessionQueue(cards: SessionCard[], config: SessionConfig, now: Date): SessionCard[] {
+export function buildSessionQueue<T extends SessionSrsFields>(
+  cards: T[],
+  config: QueueConfig,
+  now: Date,
+): T[] {
   const pool = eligibleCards(cards, config, now);
   const overdue = pool
     .filter((card) => sessionPriority(card, now) === 1)
@@ -115,7 +126,11 @@ export function buildSessionQueue(cards: SessionCard[], config: SessionConfig, n
   return ordered.slice(0, config.limit);
 }
 
-export function previewSession(cards: SessionCard[], config: SessionConfig, now: Date): SessionPreview {
+export function previewSession<T extends SessionSrsFields>(
+  cards: T[],
+  config: QueueConfig,
+  now: Date,
+): SessionPreview {
   const inCategory = cards.filter((card) => matchesCategory(card, config.categoryId));
   const queue = buildSessionQueue(cards, config, now);
   return {

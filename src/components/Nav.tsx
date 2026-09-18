@@ -8,7 +8,7 @@ const links = [
   { href: "/vocabulary", label: "Vocabulary" },
   { href: "/review", label: "Review" },
   { href: "/categories", label: "Categories" },
-  { href: "/grammar", label: "Grammar", disabled: true },
+  { href: "/grammar", label: "Grammar" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -24,13 +24,6 @@ export function Nav() {
     <nav className="nav" aria-label="Main">
       {links.map((link) => {
         const active = isActive(pathname, link.href);
-        if (link.disabled) {
-          return (
-            <span key={link.href} className="nav-link disabled" aria-disabled="true">
-              {link.label}
-            </span>
-          );
-        }
         return (
           <Link key={link.href} href={link.href} className={active ? "nav-link active" : "nav-link"}>
             {link.label}

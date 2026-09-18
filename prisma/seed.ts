@@ -1,7 +1,9 @@
 import { prisma } from "../src/lib/db";
 
 async function main() {
+  await prisma.grammarReview.deleteMany();
   await prisma.review.deleteMany();
+  await prisma.grammar.deleteMany();
   await prisma.vocabulary.deleteMany();
   await prisma.category.deleteMany();
 
@@ -64,6 +66,35 @@ async function main() {
         notes: "",
         categoryId: everyday.id,
         tags: "noun,people",
+      },
+    ],
+  });
+
+  await prisma.grammar.createMany({
+    data: [
+      {
+        title: "-고 싶다",
+        meaning: "to want to",
+        structure: "V-고 싶다",
+        explanation: "Attach 고 싶다 to a verb stem to express desire.",
+        examples: JSON.stringify([
+          { sentence: "한국어를 배우고 싶어요.", translation: "I want to learn Korean." },
+        ]),
+        notes: "Conjugates like an adjective.",
+        categoryId: everyday.id,
+        tags: "desire,verb",
+      },
+      {
+        title: "-아/어요",
+        meaning: "informal polite present",
+        structure: "V/A-아/어요",
+        explanation: "The everyday polite present/future ending.",
+        examples: JSON.stringify([
+          { sentence: "지금 먹어요.", translation: "I am eating now." },
+        ]),
+        notes: "",
+        categoryId: greetings.id,
+        tags: "conjugation",
       },
     ],
   });

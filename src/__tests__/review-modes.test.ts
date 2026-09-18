@@ -47,7 +47,7 @@ describe("pickReviewMode", () => {
   });
 
   it("distributes Mixed modes instead of repeating one mode", () => {
-    const queue = [word, word, { ...word, id: "3" }, { ...word, id: "4" }];
+    const queue = [word, word, { ...word, id: "3" }, { ...word, id: "4" }, { ...word, id: "5" }];
     const modes = assignQueueModes(queue, "mixed").map((item) => item.mode);
     expect(new Set(modes).size).toBeGreaterThan(1);
     expect(modes).toEqual([
@@ -55,13 +55,21 @@ describe("pickReviewMode", () => {
       "meaning-ko",
       "sentence-meaning",
       "sentence-completion",
+      "typing",
     ]);
+    expect(modes).toContain("typing");
   });
 
   it("keeps Mixed mode limited when a card has no sentence", () => {
-    expect(availableModes(noSentence, "mixed")).toEqual(["ko-meaning", "meaning-ko"]);
+    expect(availableModes(noSentence, "mixed")).toEqual(["ko-meaning", "meaning-ko", "typing"]);
     expect(pickReviewMode(noSentence, "mixed", 0)).toBe("ko-meaning");
     expect(pickReviewMode(noSentence, "mixed", 1)).toBe("meaning-ko");
+    expect(pickReviewMode(noSentence, "mixed", 2)).toBe("typing");
+  });
+
+  it("locks the Typing filter", () => {
+    expect(availableModes(word, "typing")).toEqual(["typing"]);
+    expect(pickReviewMode(word, "typing", 4)).toBe("typing");
   });
 });
 
@@ -70,5 +78,12 @@ describe("buildPrompt", () => {
     const prompt = buildPrompt(word, "sentence-completion");
     expect(prompt.prompt).toBe("_____ 한 잔 주세요.");
     expect(prompt.answer).toBe("물 한 잔 주세요.");
+  });
+
+  it("shows the meaning and expects the Korean word in Typing mode", () => {
+    const prompt = buildPrompt(word, "typing");
+    expect(prompt.prompt).toBe("water");
+    expect(prompt.answer).toBe("물");
+    expect(prompt.hint).toBe("Type the Korean");
   });
 });

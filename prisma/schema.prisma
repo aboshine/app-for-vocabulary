@@ -13,6 +13,7 @@ model Category {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
   words     Vocabulary[]
+  grammars  Grammar[]
 }
 
 model Vocabulary {
@@ -56,4 +57,47 @@ model Review {
 
   @@index([createdAt])
   @@index([vocabularyId])
+}
+
+model Grammar {
+  id              String           @id @default(cuid())
+  title           String
+  meaning         String
+  explanation     String           @default("")
+  structure       String           @default("")
+  examples        String           @default("[]")
+  notes           String           @default("")
+  categoryId      String?
+  category        Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags            String           @default("")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  learningState   String           @default("new")
+  reviewCount     Int              @default(0)
+  againCount      Int              @default(0)
+  hardCount       Int              @default(0)
+  goodCount       Int              @default(0)
+  easyCount       Int              @default(0)
+  nextReviewAt    DateTime         @default(now())
+  lastReviewedAt  DateTime?
+  intervalMinutes Int              @default(0)
+  reviews         GrammarReview[]
+
+  @@index([nextReviewAt])
+  @@index([learningState])
+  @@index([categoryId])
+  @@index([title])
+}
+
+model GrammarReview {
+  id             String   @id @default(cuid())
+  grammarId      String
+  grammar        Grammar  @relation(fields: [grammarId], references: [id], onDelete: Cascade)
+  rating         String
+  intervalBefore Int
+  intervalAfter  Int
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([grammarId])
 }

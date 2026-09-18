@@ -7,6 +7,9 @@ export const LIMITS = {
   notes: 1000,
   tags: 200,
   category: 80,
+  title: 200,
+  explanation: 4000,
+  structure: 500,
 } as const;
 
 export async function readJson(request: Request): Promise<{ ok: true; data: unknown } | { ok: false }> {
@@ -78,5 +81,81 @@ export function matchesSearch(
   return (
     word.korean.toLowerCase().includes(needle) ||
     word.meaning.toLowerCase().includes(needle)
+  );
+}
+
+export interface GrammarExample {
+  sentence: string;
+  translation: string;
+}
+
+export interface GrammarInput {
+  title: string;
+  meaning: string;
+  explanation: string;
+  structure: string;
+  examples: GrammarExample[];
+  notes: string;
+  categoryId: string | null;
+  tags: string;
+}
+
+function parseExampleList(value: unknown): GrammarExample[] {
+  if (!Array.isArray(value)) return [];
+  const examples: GrammarExample[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    const sentence = clip(row.sentence ?? row.korean, LIMITS.example);
+    const translation = clip(row.translation, LIMITS.example);
+    if (!sentence && !translation) continue;
+    examples.push({ sentence, translation });
+  }
+  return examples;
+}
+
+export function parseStoredExamples(value: string): GrammarExample[] {
+  try {
+    return parseExampleList(JSON.parse(value));
+  } catch {
+    return [];
+  }
+}
+
+export function serializeExamples(examples: GrammarExample[]): string {
+  return JSON.stringify(examples);
+}
+
+export function parseGrammarInput(body: unknown): GrammarInput | string {
+  const data = asRecord(body);
+  if (!data) return "Invalid payload.";
+  const title = clip(data.title, LIMITS.title);
+  const meaning = clip(data.meaning, LIMITS.meaning);
+  if (!title || !meaning) return "Title and meaning are required.";
+  const categoryId = clip(data.categoryId, 64);
+  return {
+    title,
+    meaning,
+    explanation: clip(data.explanation, LIMITS.explanation),
+    structure: clip(data.structure, LIMITS.structure),
+    examples: parseExampleList(data.examples),
+    notes: clip(data.notes, LIMITS.notes),
+    categoryId: categoryId || null,
+    tags: clip(data.tags, LIMITS.tags),
+  };
+}
+
+export function matchesGrammarSearch(
+  item: { title: string; meaning: string; explanation: string; structure: string; tags: string },
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return (
+    item.title.toLowerCase().includes(needle) ||
+    item.meaning.toLowerCase().includes(needle) ||
+    item.explanation.toLowerCase().includes(needle) ||
+    item.structure.toLowerCase().includes(needle) ||
+    item.tags.toLowerCase().includes(needle)
   );
 }
