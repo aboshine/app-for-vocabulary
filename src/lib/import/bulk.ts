@@ -15,57 +15,60 @@ export async function executeImport(rows: RawImportRow[], mode: DuplicateMode, n
   const preview = validateImportRows(rows, existingByKorean);
   const plan = planImport(preview, mode);
 
-  await prisma.$transaction(async (tx) => {
-    const categoryNames = [
-      ...new Set(
-        [...plan.inserts, ...plan.updates]
-          .map((row) => row.category)
-          .filter(Boolean),
-      ),
-    ];
-    const categoryIds = new Map<string, string>();
-    if (categoryNames.length > 0) {
-      const existing = await tx.category.findMany({
-        where: { name: { in: categoryNames } },
-      });
-      for (const category of existing) categoryIds.set(category.name, category.id);
-      for (const name of categoryNames) {
-        if (categoryIds.has(name)) continue;
-        const created = await tx.category.create({ data: { name } });
-        categoryIds.set(name, created.id);
+  await prisma.$transaction(
+    async (tx) => {
+      const categoryNames = [
+        ...new Set(
+          [...plan.inserts, ...plan.updates]
+            .map((row) => row.category)
+            .filter(Boolean),
+        ),
+      ];
+      const categoryIds = new Map<string, string>();
+      if (categoryNames.length > 0) {
+        const existing = await tx.category.findMany({
+          where: { name: { in: categoryNames } },
+        });
+        for (const category of existing) categoryIds.set(category.name, category.id);
+        for (const name of categoryNames) {
+          if (categoryIds.has(name)) continue;
+          const created = await tx.category.create({ data: { name } });
+          categoryIds.set(name, created.id);
+        }
       }
-    }
 
-    if (plan.inserts.length > 0) {
-      await tx.vocabulary.createMany({
-        data: plan.inserts.map((row) => ({
-          korean: row.korean,
-          meaning: row.meaning,
-          exampleSentence: row.exampleSentence,
-          exampleTranslation: row.exampleTranslation,
-          notes: row.notes,
-          tags: row.tags,
-          categoryId: row.category ? categoryIds.get(row.category) ?? null : null,
-          ...srsInitFields(now),
-        })),
-      });
-    }
+      if (plan.inserts.length > 0) {
+        await tx.vocabulary.createMany({
+          data: plan.inserts.map((row) => ({
+            korean: row.korean,
+            meaning: row.meaning,
+            exampleSentence: row.exampleSentence,
+            exampleTranslation: row.exampleTranslation,
+            notes: row.notes,
+            tags: row.tags,
+            categoryId: row.category ? categoryIds.get(row.category) ?? null : null,
+            ...srsInitFields(now),
+          })),
+        });
+      }
 
-    for (const row of plan.updates) {
-      await tx.vocabulary.update({
-        where: { id: row.existingId as string },
-        data: {
-          korean: row.korean,
-          meaning: row.meaning,
-          exampleSentence: row.exampleSentence,
-          exampleTranslation: row.exampleTranslation,
-          notes: row.notes,
-          tags: row.tags,
-          categoryId: row.category ? categoryIds.get(row.category) ?? null : null,
-        },
-      });
-    }
-  });
+      for (const row of plan.updates) {
+        await tx.vocabulary.update({
+          where: { id: row.existingId as string },
+          data: {
+            korean: row.korean,
+            meaning: row.meaning,
+            exampleSentence: row.exampleSentence,
+            exampleTranslation: row.exampleTranslation,
+            notes: row.notes,
+            tags: row.tags,
+            categoryId: row.category ? categoryIds.get(row.category) ?? null : null,
+          },
+        });
+      }
+    },
+    { maxWait: 10_000, timeout: 55_000 },
+  );
 
   return { ...summarizePlan(plan), rows: preview };
 }

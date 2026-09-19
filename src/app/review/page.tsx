@@ -7,8 +7,9 @@ import { api } from "@/lib/api";
 import {
   assignQueueModes,
   buildPrompt,
+  isTypedReviewMode,
   isTypingAnswerCorrect,
-  typingReviewPayload,
+  typedReviewPayload,
   type ModeFilter,
   type ReviewMode,
 } from "@/lib/review-modes";
@@ -16,13 +17,14 @@ import {
   previewSession,
   SESSION_LIMITS,
   startSession,
-  TODAY_SESSION,
   type SessionCard,
   type SessionConfig,
   type SessionLimit,
 } from "@/lib/review-session";
+import { DEFAULT_SETTINGS, sessionConfigFromSettings, type LearningSettings } from "@/lib/settings";
 import type { LearningState, Rating } from "@/lib/srs";
 
+type SettingsResponse = LearningSettings & { newIntroducedToday: number };
 type QueuedWord = SessionCard & { mode: ReviewMode };
 type Category = { id: string; name: string };
 
@@ -31,6 +33,7 @@ const FILTERS: Array<{ id: ModeFilter; label: string }> = [
   { id: "ko-meaning", label: "Korean → Meaning" },
   { id: "meaning-ko", label: "Meaning → Korean" },
   { id: "sentence", label: "Sentence" },
+  { id: "sentence-production", label: "Sentence Production" },
   { id: "typing", label: "Typing" },
 ];
 
@@ -46,12 +49,8 @@ export default function ReviewPage() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const typingInputRef = useRef<HTMLInputElement>(null);
-  const [config, setConfig] = useState<SessionConfig>({
-    limit: 10,
-    mode: "mixed",
-    categoryId: "",
-    includeNew: true,
-  });
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [config, setConfig] = useState<SessionConfig>(() => sessionConfigFromSettings(DEFAULT_SETTINGS));
 
   const loadPool = useCallback(async (categoryId: string) => {
     setError(null);
@@ -78,6 +77,15 @@ export default function ReviewPage() {
     api<Category[]>("/api/categories")
       .then(setCategories)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
+    api<SettingsResponse>("/api/settings")
+      .then((data) => {
+        setConfig(sessionConfigFromSettings(data, data.newIntroducedToday));
+        setSettingsReady(true);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load settings");
+        setSettingsReady(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -105,12 +113,11 @@ export default function ReviewPage() {
         .catch((err) => setError(err instanceof Error ? err.message : "Word not found"));
       return;
     }
-    if (!pool) return;
+    if (!pool || !settingsReady) return;
     if (params.get("today") !== "1") return;
-    setConfig(TODAY_SESSION);
-    setQueue(startSession(pool, TODAY_SESSION, new Date()));
+    setQueue(startSession(pool, config, new Date()));
     setStarted(true);
-  }, [pool, started]);
+  }, [pool, started, settingsReady, config]);
 
   const preview = useMemo(
     () => (pool ? previewSession(pool, config, new Date()) : null),
@@ -122,13 +129,13 @@ export default function ReviewPage() {
     () => (current ? buildPrompt(current, current.mode) : null),
     [current],
   );
-  const isTyping = current?.mode === "typing";
-  const typingCorrect = current ? isTypingAnswerCorrect(typed, current.korean) : false;
+  const isTyped = current ? isTypedReviewMode(current.mode) : false;
+  const typingCorrect = current && content ? isTypingAnswerCorrect(typed, content.answer) : false;
 
   useEffect(() => {
-    if (!started || !isTyping || revealed) return;
+    if (!started || !isTyped || revealed) return;
     typingInputRef.current?.focus();
-  }, [isTyping, revealed, started, current?.id]);
+  }, [isTyped, revealed, started, current?.id]);
 
   function begin() {
     if (!pool) return;
@@ -168,8 +175,8 @@ export default function ReviewPage() {
       await api("/api/review", {
         method: "POST",
         body: JSON.stringify(
-          current.mode === "typing"
-            ? typingReviewPayload(current.id, rating)
+          isTypedReviewMode(current.mode)
+            ? typedReviewPayload(current.id, rating, current.mode)
             : {
                 vocabularyId: current.id,
                 rating,
@@ -195,7 +202,7 @@ export default function ReviewPage() {
       const tag = (event.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (event.code === "Space") {
-        if (current?.mode === "typing") return;
+        if (current && isTypedReviewMode(current.mode)) return;
         event.preventDefault();
         if (current && !revealed) setRevealed(true);
         return;
@@ -228,7 +235,7 @@ export default function ReviewPage() {
         <div className="header">
           <h1>Review</h1>
         </div>
-        <Status loading={!pool && !error} error={error}>
+        <Status loading={(!pool || !settingsReady) && !error} error={error}>
           <section className="card form" style={{ marginBottom: 12 }}>
             <label>
               Number of cards
@@ -313,9 +320,10 @@ export default function ReviewPage() {
         emptyText="Session complete."
       >
         {current && content ? (
-          isTyping ? (
+          isTyped ? (
             <>
               <p className="muted">{content.hint}</p>
+              {content.translationHint ? <p className="muted">{content.translationHint}</p> : null}
               <section className="card flashcard" style={{ cursor: "default" }}>
                 <div>
                   <p className="prompt">{content.prompt}</p>
@@ -323,8 +331,14 @@ export default function ReviewPage() {
                     <>
                       <p className="muted">Your answer</p>
                       <p className="answer">{typed.trim() ? typed : "—"}</p>
-                      <p className="muted">Correct Korean</p>
+                      <p className="muted">Correct answer</p>
                       <p className="answer">{content.answer}</p>
+                      {content.originalSentence ? (
+                        <>
+                          <p className="muted">Original sentence</p>
+                          <p className="answer">{content.originalSentence}</p>
+                        </>
+                      ) : null}
                       {submitted ? (
                         <p>
                           <span className="badge">{typingCorrect ? "Correct" : "Incorrect"}</span>
@@ -335,7 +349,11 @@ export default function ReviewPage() {
                       ))}
                     </>
                   ) : (
-                    <p className="muted">Type the Korean word, then Enter</p>
+                    <p className="muted">
+                      {content.mode === "sentence-production"
+                        ? "Type the missing Korean, then Enter"
+                        : "Type the Korean word, then Enter"}
+                    </p>
                   )}
                 </div>
               </section>

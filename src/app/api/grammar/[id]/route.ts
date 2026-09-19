@@ -4,6 +4,9 @@ import { deleteGrammar, updateGrammar } from "@/lib/grammar-service";
 import { isValidVocabId } from "@/lib/vocab-detail";
 import { parseGrammarInput, readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

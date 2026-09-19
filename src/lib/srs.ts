@@ -5,6 +5,7 @@ export type ReviewDirection =
   | "meaning-ko"
   | "sentence-meaning"
   | "sentence-completion"
+  | "sentence-production"
   | "typing";
 
 export const LEARNING_STATES: LearningState[] = ["new", "learning", "learned"];
@@ -14,6 +15,7 @@ export const DIRECTIONS: ReviewDirection[] = [
   "meaning-ko",
   "sentence-meaning",
   "sentence-completion",
+  "sentence-production",
   "typing",
 ];
 

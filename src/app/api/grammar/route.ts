@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { createGrammar, listGrammar } from "@/lib/grammar-service";
 import { parseGrammarInput, readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const items = await listGrammar({

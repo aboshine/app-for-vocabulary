@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Category {
@@ -100,4 +101,16 @@ model GrammarReview {
 
   @@index([createdAt])
   @@index([grammarId])
+}
+
+model AppSettings {
+  id                String   @id
+  dailyNewWordLimit Int      @default(10)
+  sessionLimit      String   @default("10")
+  defaultMode       String   @default("mixed")
+  mixedModes        String   @default("")
+  includeNew        Boolean  @default(true)
+  defaultCategoryId String   @default("")
+  dailyReviewTarget Int      @default(20)
+  updatedAt         DateTime @updatedAt
 }

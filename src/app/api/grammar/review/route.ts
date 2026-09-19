@@ -3,6 +3,9 @@ import { submitGrammarReview } from "@/lib/grammar-service";
 import { RATINGS, type Rating } from "@/lib/srs";
 import { readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   const body = await readJson(request);
   if (!body.ok) return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });

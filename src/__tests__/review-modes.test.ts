@@ -47,7 +47,14 @@ describe("pickReviewMode", () => {
   });
 
   it("distributes Mixed modes instead of repeating one mode", () => {
-    const queue = [word, word, { ...word, id: "3" }, { ...word, id: "4" }, { ...word, id: "5" }];
+    const queue = [
+      word,
+      word,
+      { ...word, id: "3" },
+      { ...word, id: "4" },
+      { ...word, id: "5" },
+      { ...word, id: "6" },
+    ];
     const modes = assignQueueModes(queue, "mixed").map((item) => item.mode);
     expect(new Set(modes).size).toBeGreaterThan(1);
     expect(modes).toEqual([
@@ -55,13 +62,15 @@ describe("pickReviewMode", () => {
       "meaning-ko",
       "sentence-meaning",
       "sentence-completion",
+      "sentence-production",
       "typing",
     ]);
-    expect(modes).toContain("typing");
+    expect(modes).toContain("sentence-production");
   });
 
   it("keeps Mixed mode limited when a card has no sentence", () => {
     expect(availableModes(noSentence, "mixed")).toEqual(["ko-meaning", "meaning-ko", "typing"]);
+    expect(availableModes(noSentence, "mixed")).not.toContain("sentence-production");
     expect(pickReviewMode(noSentence, "mixed", 0)).toBe("ko-meaning");
     expect(pickReviewMode(noSentence, "mixed", 1)).toBe("meaning-ko");
     expect(pickReviewMode(noSentence, "mixed", 2)).toBe("typing");

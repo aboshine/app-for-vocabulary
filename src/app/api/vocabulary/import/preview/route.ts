@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { previewImport } from "@/lib/import/bulk";
 import { readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const body = await readJson(request);
   if (!body.ok) return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });

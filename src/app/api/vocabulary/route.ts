@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { listVocabulary } from "@/lib/vocab-service";
 import { parseVocabInput, readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const words = await listVocabulary({

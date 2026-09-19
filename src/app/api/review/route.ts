@@ -3,6 +3,9 @@ import { DIRECTIONS, RATINGS, type Rating, type ReviewDirection } from "@/lib/sr
 import { readJson } from "@/lib/validation";
 import { submitReview } from "@/lib/vocab-service";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   const body = await readJson(request);
   if (!body.ok) return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });

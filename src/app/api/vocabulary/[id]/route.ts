@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { isValidVocabId } from "@/lib/vocab-detail";
 import { parseVocabInput, readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

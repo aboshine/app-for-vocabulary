@@ -5,6 +5,7 @@ import {
   rankDifficultWords,
   remainingToday,
 } from "./dashboard";
+import { getSettings } from "./settings-service";
 import { endOfDay, scheduleReview, startOfDay, type Rating, type ReviewDirection } from "./srs";
 import { matchesSearch, parseLearningState } from "./validation";
 
@@ -171,6 +172,7 @@ export async function getDashboardData(now = new Date()) {
     recent,
     categoryGroups,
     categories,
+    settings,
   ] = await Promise.all([
     prisma.vocabulary.count({ where: { nextReviewAt: { lt: dayStart } } }),
     prisma.vocabulary.count({
@@ -213,6 +215,7 @@ export async function getDashboardData(now = new Date()) {
       _count: { _all: true },
     }),
     prisma.category.findMany({ select: { id: true, name: true } }),
+    getSettings(),
   ]);
 
   const byWord = new Map<string, { success: number; total: number }>();
@@ -250,7 +253,7 @@ export async function getDashboardData(now = new Date()) {
     },
     progress: {
       reviewedToday,
-      remaining: remainingToday(recommended, reviewedToday),
+      remaining: remainingToday(settings.dailyReviewTarget, reviewedToday),
       learning,
       learned,
       total,

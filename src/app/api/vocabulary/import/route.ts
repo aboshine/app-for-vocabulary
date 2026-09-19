@@ -4,6 +4,10 @@ import type { DuplicateMode } from "@/lib/import/plan";
 import { parseImportText } from "@/lib/import/parse";
 import { readJson } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const MAX_ROWS = 2000;
 
 export async function POST(request: NextRequest) {

@@ -217,6 +217,6 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
   }
   .grid { grid-template-columns: repeat(3, 1fr); }
   .ratings { grid-template-columns: repeat(4, 1fr); }
-  .mode-grid { grid-template-columns: repeat(5, 1fr); }
+  .mode-grid { grid-template-columns: repeat(3, 1fr); }
   .kbd { display: inline; font-size: 0.75rem; opacity: 0.75; margin-left: 4px; }
 }

@@ -24,6 +24,8 @@ export interface SessionConfig {
   mode: ModeFilter;
   categoryId: string;
   includeNew: boolean;
+  newCardLimit?: number;
+  mixedModes?: ReviewMode[];
 }
 
 export const TODAY_SESSION: SessionConfig = {
@@ -66,7 +68,31 @@ export function uniqueById<T extends { id: string }>(items: T[]): T[] {
 }
 
 export type QueueConfig = Pick<SessionConfig, "limit" | "categoryId" | "includeNew"> &
-  Partial<Pick<SessionConfig, "mode">>;
+  Partial<Pick<SessionConfig, "mode" | "newCardLimit" | "mixedModes">>;
+
+export function remainingNewCards(dailyLimit: number, introducedToday: number): number {
+  return Math.max(0, dailyLimit - Math.max(0, introducedToday));
+}
+
+export function countNewIntroducedOnDay(firstReviewedAt: Array<Date | null | undefined>, now: Date): number {
+  const start = startOfDay(now).getTime();
+  const end = endOfDay(now).getTime();
+  return firstReviewedAt.filter((date) => {
+    if (!date) return false;
+    const time = date.getTime();
+    return time >= start && time <= end;
+  }).length;
+}
+
+export function capNewCards<T extends SessionSrsFields>(cards: T[], remainingNew: number): T[] {
+  let used = 0;
+  return cards.filter((card) => {
+    if (card.learningState !== "new") return true;
+    if (used >= remainingNew) return false;
+    used += 1;
+    return true;
+  });
+}
 
 function matchesCategory(card: Pick<SessionSrsFields, "categoryId">, categoryId: string): boolean {
   return !categoryId || card.categoryId === categoryId;
@@ -122,8 +148,10 @@ export function buildSessionQueue<T extends SessionSrsFields>(
     .sort((a, b) => a.nextReviewAt.getTime() - b.nextReviewAt.getTime() || a.id.localeCompare(b.id));
 
   const ordered = uniqueById([...overdue, ...dueToday, ...difficult, ...fresh]);
-  if (config.limit === "all") return ordered;
-  return ordered.slice(0, config.limit);
+  const capped =
+    config.newCardLimit == null ? ordered : capNewCards(ordered, config.newCardLimit);
+  if (config.limit === "all") return capped;
+  return capped.slice(0, config.limit);
 }
 
 export function previewSession<T extends SessionSrsFields>(
@@ -146,5 +174,5 @@ export function startSession(
   config: SessionConfig,
   now: Date,
 ): Array<SessionCard & { mode: ReviewMode }> {
-  return assignQueueModes(buildSessionQueue(cards, config, now), config.mode);
+  return assignQueueModes(buildSessionQueue(cards, config, now), config.mode, config.mixedModes);
 }

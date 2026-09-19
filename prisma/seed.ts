@@ -1,6 +1,14 @@
 import { prisma } from "../src/lib/db";
 
+function assertDevelopmentSeed() {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("Seed data is development-only and will not run in production.");
+  }
+}
+
 async function main() {
+  assertDevelopmentSeed();
+
   await prisma.grammarReview.deleteMany();
   await prisma.review.deleteMany();
   await prisma.grammar.deleteMany();
