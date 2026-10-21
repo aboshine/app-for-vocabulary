@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Categories moved out of the bar to make room for Read / Learn; it is linked from Words and Learn.
 const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/vocabulary", label: "Vocabulary" },
+  { href: "/", label: "Today" },
+  { href: "/reading", label: "Read" },
   { href: "/review", label: "Review" },
-  { href: "/categories", label: "Categories" },
+  { href: "/learn", label: "Learn" },
+  { href: "/vocabulary", label: "Words" },
   { href: "/grammar", label: "Grammar" },
   { href: "/settings", label: "Settings" },
 ];

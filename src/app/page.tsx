@@ -47,8 +47,9 @@ export default function DashboardPage() {
         {empty ? (
           <section className="card">
             <p>No vocabulary yet.</p>
-            <p className="muted">Add a few words, then start a review session.</p>
-            <Link className="cta" href="/vocabulary/new">Add your first word</Link>
+            <p className="muted">Pick a theme with ready-made TOPIK words, or add your own.</p>
+            <Link className="cta" href="/learn">Choose a theme</Link>
+            <Link className="cta secondary-cta" href="/vocabulary/new">Add your first word</Link>
           </section>
         ) : null}
         {data && !empty ? (
@@ -59,7 +60,8 @@ export default function DashboardPage() {
               <Stat label="New cards" value={data.today.new} />
               <Stat label="Recommended" value={data.today.recommended} />
             </section>
-            <Link className="cta" href="/review?today=1">Start Today&apos;s Review</Link>
+            <Link className="cta" href="/reading">📖 Read today&apos;s text</Link>
+            <Link className="cta secondary-cta" href="/review?today=1">Start Today&apos;s Review</Link>
             <h2 className="section-title">Progress</h2>
             <section className="grid" style={{ marginBottom: 16 }}>
               <Stat label="Today's reviewed" value={data.progress.reviewedToday} />

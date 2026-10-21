@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AiSettingsSection } from "@/components/AiSettingsSection";
 import { Status } from "@/components/Status";
 import { api } from "@/lib/api";
 import {
@@ -216,6 +217,7 @@ export default function SettingsPage() {
               ) : null}
             </section>
             <p className="muted">Defaults: {DEFAULT_SETTINGS.dailyNewWordLimit} new / {DEFAULT_SETTINGS.sessionLimit} cards / Mixed.</p>
+            <AiSettingsSection />
           </div>
         ) : null}
       </Status>
