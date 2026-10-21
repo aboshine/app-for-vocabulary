@@ -1,6 +1,6 @@
 # Korean Vocab
 
-Private flashcards for Korean vocabulary and grammar with spaced repetition.
+Private flashcards for Korean vocabulary and grammar with spaced repetition, plus themed TOPIK word packs and a daily AI reading text at your level.
 
 This app is a Next.js server that talks to PostgreSQL through Prisma. It is designed to run locally and on Vercel. There is no authentication yet.
 
@@ -12,6 +12,8 @@ Copy `.env.example` to `.env` and set:
 | --- | --- |
 | `DATABASE_URL` | App connection string. In production, use a pooled URL (Neon/Supabase/Vercel Postgres pooler). |
 | `DIRECT_URL` | Direct (non-pooled) connection string used by Prisma Migrate. |
+| `GEMINI_API_KEY` | Optional. Enables Read / Learn AI / "Fill with AI". Free key: https://aistudio.google.com/apikey |
+| `APP_TIMEZONE` | Optional, default `Asia/Seoul`. Decides which day a reading text belongs to. |
 
 Local example:
 
@@ -46,6 +48,16 @@ Open http://localhost:3000
 
 `npm run db:seed` loads sample vocabulary/grammar for development only. It will refuse to run when `NODE_ENV` or `VERCEL_ENV` is `production`.
 
+## How to use it
+
+1. **Learn**: pick a theme and add a pack of words (8 by default). Learn one theme at a time. "More words with AI" suggests words for any topic.
+2. **Read**: generate today's text, a short story at your TOPIK level built around the words of your current theme and the ones due for review. Tap a word for its meaning; ▶ reads aloud, 文 shows the translation. Mark forgotten words and press *Finish reading*; that counts as a review.
+3. **Review** / **Grammar**: flashcards as before.
+4. **Add word → ✨ Fill with AI** fills meaning, example and notes.
+
+AI level, translation language and pack sizes are under **Settings → AI reading & word packs**.
+Gemini is called over plain `fetch` (no SDK). If the main model hits a free-tier limit the app retries with the lighter one. `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` switches to Claude; `AI_PROVIDER=mock` returns canned data for local UI work.
+
 ## Test
 
 ```bash
@@ -56,8 +68,10 @@ npm test
 
 Do not add secrets to the repo. In the Vercel project:
 
-1. Set `DATABASE_URL` and `DIRECT_URL`.
+1. Set `DATABASE_URL` and `DIRECT_URL`, and `GEMINI_API_KEY` for the AI features (Production and Preview).
 2. Use build command `prisma generate && prisma migrate deploy && next build` (this repo’s `vercel.json` already sets that).
 3. Deploy the Next.js app. Prisma Migrate runs during build; the app uses serverless route handlers and does not need a long-running Node process.
 
 Seed is not part of production deploy.
+
+Note: `prisma migrate deploy` runs on **every** Vercel build, Preview builds included. If Preview and Production share one `DATABASE_URL`, a Preview build applies pending migrations to the production database. Keep migrations additive/backward-compatible (as `20261021000000_ai_reading` is), or give Preview its own database.

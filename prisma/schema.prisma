@@ -38,6 +38,10 @@ model Vocabulary {
   nextReviewAt       DateTime  @default(now())
   lastReviewedAt     DateTime?
   intervalMinutes    Int       @default(0)
+  /// "manual" | "curriculum" | "ai" | "reading"
+  source             String    @default("manual")
+  /// e.g. "TOPIK1", "TOPIK2"; empty for words added by hand
+  level              String    @default("")
   reviews            Review[]
 
   @@index([nextReviewAt])
@@ -112,5 +116,29 @@ model AppSettings {
   includeNew        Boolean  @default(true)
   defaultCategoryId String   @default("")
   dailyReviewTarget Int      @default(20)
+  /// AI reading / word packs (see src/lib/ai-settings.ts)
+  aiLevel           Int      @default(2)
+  aiLang            String   @default("ru")
+  currentTheme      String   @default("")
+  targetsPerText    Int      @default(8)
+  packSize          Int      @default(8)
   updatedAt         DateTime @updatedAt
+}
+
+/// One AI-generated graded reading text. `payload` holds the JSON from lib/ai/prompts (ReadingPayload).
+model DailyText {
+  id          String    @id @default(cuid())
+  /// Local calendar day (YYYY-MM-DD, APP_TIMEZONE) the text belongs to
+  day         String
+  level       String
+  theme       String    @default("")
+  title       String
+  payload     String
+  /// Comma-separated Vocabulary ids the text was built around
+  targetIds   String    @default("")
+  model       String    @default("")
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([day])
 }

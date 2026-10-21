@@ -1,6 +1,7 @@
 import type { Rating, ReviewDirection } from "./srs";
 
-export type ReviewMode = ReviewDirection;
+/** Flashcard modes. "reading" is a ReviewDirection too, but it is recorded by the Read page, never shown as a card. */
+export type ReviewMode = Exclude<ReviewDirection, "reading">;
 export type ModeFilter =
   | "mixed"
   | "ko-meaning"

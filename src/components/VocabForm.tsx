@@ -35,6 +35,37 @@ export function VocabForm({
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
+
+  /** Ask the AI for meaning, example and notes; only empty fields are filled. */
+  async function fillWithAi() {
+    if (!values.korean.trim()) {
+      setError("Type the Korean word first.");
+      return;
+    }
+    setFilling(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/ai/fill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ korean: values.korean.trim() }),
+      });
+      const data = (await response.json()) as Partial<VocabFormValues> & { error?: string };
+      if (!response.ok) throw new Error(data.error || "AI request failed");
+      setValues((current) => ({
+        ...current,
+        meaning: current.meaning.trim() || data.meaning || "",
+        exampleSentence: current.exampleSentence.trim() || data.exampleSentence || "",
+        exampleTranslation: current.exampleTranslation.trim() || data.exampleTranslation || "",
+        notes: current.notes.trim() || data.notes || "",
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI request failed");
+    } finally {
+      setFilling(false);
+    }
+  }
 
   function update<K extends keyof VocabFormValues>(key: K, value: VocabFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -69,12 +100,17 @@ export function VocabForm({
     <form className="form" onSubmit={handleSubmit}>
       <label>
         Korean
-        <input
-          required
-          maxLength={LIMITS.korean}
-          value={values.korean}
-          onChange={(e) => update("korean", e.target.value)}
-        />
+        <span className="row">
+          <input
+            required
+            maxLength={LIMITS.korean}
+            value={values.korean}
+            onChange={(e) => update("korean", e.target.value)}
+          />
+          <button type="button" className="secondary" disabled={filling} onClick={fillWithAi}>
+            {filling ? "…" : "✨ Fill with AI"}
+          </button>
+        </span>
       </label>
       <label>
         Meaning

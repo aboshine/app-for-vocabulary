@@ -6,7 +6,9 @@ export type ReviewDirection =
   | "sentence-meaning"
   | "sentence-completion"
   | "sentence-production"
-  | "typing";
+  | "typing"
+  /** the word was met as a target word in a daily reading text (not a flashcard mode) */
+  | "reading";
 
 export const LEARNING_STATES: LearningState[] = ["new", "learning", "learned"];
 export const RATINGS: Rating[] = ["again", "hard", "good", "easy"];
@@ -17,6 +19,7 @@ export const DIRECTIONS: ReviewDirection[] = [
   "sentence-completion",
   "sentence-production",
   "typing",
+  "reading",
 ];
 
 export interface SrsInput {
