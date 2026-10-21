@@ -4,7 +4,9 @@ export type ReviewDirection =
   | "ko-meaning"
   | "meaning-ko"
   | "sentence-meaning"
-  | "sentence-completion";
+  | "sentence-completion"
+  /** the word was met as a target word in a daily reading text */
+  | "reading";
 
 export const LEARNING_STATES: LearningState[] = ["new", "learning", "learned"];
 export const RATINGS: Rating[] = ["again", "hard", "good", "easy"];
@@ -13,6 +15,7 @@ export const DIRECTIONS: ReviewDirection[] = [
   "meaning-ko",
   "sentence-meaning",
   "sentence-completion",
+  "reading",
 ];
 
 export interface SrsInput {

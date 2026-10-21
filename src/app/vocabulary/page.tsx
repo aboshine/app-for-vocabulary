@@ -64,6 +64,7 @@ export default function VocabularyPage() {
       <div className="header">
         <h1>Vocabulary</h1>
         <div className="row">
+          <Link href="/categories">Categories</Link>
           <Link href="/vocabulary/import">Import</Link>
           <Link href="/vocabulary/new">Add word</Link>
         </div>

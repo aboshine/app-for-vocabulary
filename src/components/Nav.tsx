@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/vocabulary", label: "Vocabulary" },
+const links: Array<{ href: string; label: string; disabled?: boolean }> = [
+  { href: "/", label: "Today" },
+  { href: "/reading", label: "Read" },
   { href: "/review", label: "Review" },
-  { href: "/categories", label: "Categories" },
-  { href: "/grammar", label: "Grammar", disabled: true },
+  { href: "/learn", label: "Learn" },
+  { href: "/vocabulary", label: "Words" },
   { href: "/settings", label: "Settings" },
 ];
 
