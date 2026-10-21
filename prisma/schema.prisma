@@ -36,6 +36,10 @@ model Vocabulary {
   nextReviewAt       DateTime  @default(now())
   lastReviewedAt     DateTime?
   intervalMinutes    Int       @default(0)
+  /// "manual" | "curriculum" | "ai" | "reading"
+  source             String    @default("manual")
+  /// e.g. "TOPIK1", "TOPIK2"; empty for words added by hand
+  level              String    @default("")
   reviews            Review[]
 
   @@index([nextReviewAt])
@@ -56,4 +60,29 @@ model Review {
 
   @@index([createdAt])
   @@index([vocabularyId])
+}
+
+/// Small key/value store for app settings (level, current theme, translation language).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+/// One AI-generated graded reading text. `payload` holds the JSON from lib/reading.
+model DailyText {
+  id          String    @id @default(cuid())
+  /// Local calendar day (YYYY-MM-DD) the text belongs to
+  day         String
+  level       String
+  theme       String    @default("")
+  title       String
+  payload     String
+  /// Comma-separated Vocabulary ids the text was built around
+  targetIds   String    @default("")
+  model       String    @default("")
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([day])
 }

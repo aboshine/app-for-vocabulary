@@ -1,6 +1,6 @@
 import type { ReviewDirection } from "./srs";
 
-export type ReviewMode = ReviewDirection;
+export type ReviewMode = Exclude<ReviewDirection, "reading">;
 export type ModeFilter = "mixed" | "ko-meaning" | "meaning-ko" | "sentence";
 
 export const MODE_FILTERS: ModeFilter[] = ["mixed", "ko-meaning", "meaning-ko", "sentence"];
