@@ -99,6 +99,8 @@ function Ask() {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** which model wrote the last answer and how long the first words took */
+  const [lastInfo, setLastInfo] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,6 +116,8 @@ function Ask() {
     setBusy(true);
     setError(null);
     try {
+      const started = Date.now();
+      setLastInfo("");
       const response = await fetch("/api/tutor/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +129,7 @@ function Ask() {
       }
       if (!response.ok || !response.body) {
         const failed = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(failed.error || `Request failed (${response.status})`);
+        throw new Error(failed.error || (response.status === 504 ? "The AI took too long to answer. Try again." : `Request failed (${response.status})`));
       }
       // The answer arrives piece by piece: show it as it grows.
       const reader = response.body.getReader();
@@ -134,6 +138,7 @@ function Ask() {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (!reply) setLastInfo(`${response.headers.get("X-AI-Model") || "AI"} · first words after ${((Date.now() - started) / 1000).toFixed(1)} s`);
         reply += decoder.decode(value, { stream: true });
         setMessagesState([...next, { role: "teacher", content: reply }]);
       }
@@ -165,6 +170,7 @@ function Ask() {
             <div className={`bubble ${m.role}`} key={i}>{m.content}</div>
           ))}
           {busy && messages[messages.length - 1]?.role === "user" ? <div className="bubble teacher muted">…</div> : null}
+          {lastInfo ? <p className="muted" style={{ margin: 0, fontSize: "0.75rem" }}>{lastInfo}</p> : null}
           <div ref={endRef} />
         </div>
       )}

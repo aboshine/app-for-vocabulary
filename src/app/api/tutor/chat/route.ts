@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
   const messages = cleanChat(body.ok ? (body.data as { messages?: unknown })?.messages : null);
   let pieces: AsyncGenerator<string>;
   let first: IteratorResult<string>;
+  const info: { model?: string } = {};
   try {
-    pieces = await chatStream(messages);
+    pieces = await chatStream(messages, info);
     first = await pieces.next(); // wait for the first piece so failures still get a proper status code
   } catch (error) {
     return errorResponse(error);
@@ -37,6 +38,6 @@ export async function POST(request: NextRequest) {
     },
   });
   return new Response(stream, {
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no", "X-AI-Model": info.model ?? "" },
   });
 }

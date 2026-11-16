@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { geminiThinkingConfig, generateText, streamText } from "../lib/ai/client";
+import { geminiThinkingConfig, generateText, probeModels, streamText } from "../lib/ai/client";
 import { chatPrompt, teacherVoice } from "../lib/ai/tutor-prompts";
 
 function sse(lines: string[]): Response {
@@ -79,6 +79,22 @@ describe("streaming answers", () => {
     await generateText({ system: "s", prompt: "p", tier: "fast" });
     expect(fetchMock).toHaveBeenCalledTimes(3); // third call went straight through without the setting
     expect(JSON.parse(fetchMock.mock.calls[2][1].body).generationConfig.thinkingConfig).toBeUndefined();
+  });
+
+  it("gives up on a model that does not start answering and uses the other one", async () => {
+    const stuck = Object.assign(new Error("aborted"), { name: "AbortError" });
+    fetchMock.mockRejectedValueOnce(stuck).mockResolvedValueOnce(sse([piece("late but fine")]));
+    const info: { model?: string } = {};
+    expect(await collect(streamText({ system: "s", prompt: "p", tier: "smart" }, info))).toEqual(["late but fine"]);
+    expect(info.model).toBe("gemini-3.5-flash-lite");
+  });
+
+  it("times each model for the speed test and reports failures without throwing", async () => {
+    fetchMock.mockResolvedValueOnce(sse([piece("안녕하세요")])).mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 }));
+    const probes = await probeModels();
+    expect(probes.map((p) => p.ok)).toEqual([true, false]);
+    expect(probes[0].firstMs).not.toBeNull();
+    expect(probes[1].error).toMatch(/limit/);
   });
 
   it("reports an auth error instead of an empty stream", async () => {
