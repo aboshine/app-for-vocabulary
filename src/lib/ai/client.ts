@@ -170,18 +170,27 @@ function geminiBody(model: string, request: AiRequest, withThinking: boolean) {
   });
 }
 
+/**
+ * How long to wait for Gemini. A streamed call answers as soon as the model starts writing,
+ * so a short wait is enough and a stuck model is abandoned quickly for the other one.
+ * A normal call only answers when the whole text is ready. Both fit in the 60 s the host allows.
+ */
+export const STREAM_START_TIMEOUT_MS = 12_000;
+export const FULL_ANSWER_TIMEOUT_MS = 40_000;
+
 async function geminiFetch(model: string, request: AiRequest, method: "generateContent" | "streamGenerateContent"): Promise<Response> {
+  const ms = method === "streamGenerateContent" ? STREAM_START_TIMEOUT_MS : FULL_ANSWER_TIMEOUT_MS;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${method}${method === "streamGenerateContent" ? "?alt=sse" : ""}`;
   const init = (withThinking: boolean): RequestInit => ({
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
     body: geminiBody(model, request, withThinking),
   });
-  let response = await fetchWithTimeout(url, init(true));
+  let response = await fetchWithTimeout(url, init(true), ms);
   if (response.status === 400 && !noThinkingConfig.has(model) && geminiThinkingConfig(model)) {
     // most likely this model does not accept the thinking setting: remember that and retry plainly
     noThinkingConfig.add(model);
-    response = await fetchWithTimeout(url, init(false));
+    response = await fetchWithTimeout(url, init(false), ms);
   }
   return response;
 }
@@ -215,14 +224,16 @@ async function callGemini(model: string, request: AiRequest): Promise<string> {
  * providers yield the full answer as one piece. Falls back to the second model only if
  * nothing has been sent yet.
  */
-export async function* streamText(request: AiRequest): AsyncGenerator<string> {
+export async function* streamText(request: AiRequest, info: { model?: string } = {}): AsyncGenerator<string> {
   const provider = activeProvider();
   if (!provider) {
     throw new AiError("AI is not configured. Add GEMINI_API_KEY to the environment (free key: https://aistudio.google.com/apikey).", 503);
   }
   const req = { ...request, json: false };
   if (provider !== "gemini") {
-    yield (await generateText(req)).data;
+    const whole = await generateText(req);
+    info.model = whole.model;
+    yield whole.data;
     return;
   }
   let lastError: unknown = null;
@@ -253,6 +264,7 @@ export async function* streamText(request: AiRequest): AsyncGenerator<string> {
           }
           if (text) {
             sent = true;
+            info.model = model;
             yield text;
           }
         }
@@ -320,4 +332,51 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms = 90_000): Pr
   } finally {
     clearTimeout(timer);
   }
+}
+
+/* ------------------------------------------------------------------ speed test */
+
+export interface ModelProbe {
+  model: string;
+  role: string;
+  ok: boolean;
+  /** ms until the first words arrived */
+  firstMs: number | null;
+  totalMs: number;
+  error: string;
+}
+
+/** Ask one model a tiny question and time it (no fallback), for the "Test AI speed" button. */
+async function probeModel(model: string, role: string): Promise<ModelProbe> {
+  const started = Date.now();
+  let firstMs: number | null = null;
+  try {
+    const request: AiRequest = { system: "TASK: chat\nAnswer in one short sentence.", prompt: "Say hello in Korean and translate it.", json: false, maxOutputTokens: 200 };
+    const response = await geminiFetch(model, request, "streamGenerateContent");
+    if (!response.ok || !response.body) {
+      const body = (await response.json().catch(() => ({}))) as GeminiChunk;
+      throw httpError("Gemini", response.status, body.error?.message);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let seen = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      seen += decoder.decode(value, { stream: true });
+      if (firstMs === null && /"text"/.test(seen)) firstMs = Date.now() - started;
+    }
+    return { model, role, ok: firstMs !== null, firstMs, totalMs: Date.now() - started, error: firstMs === null ? "empty answer" : "" };
+  } catch (error) {
+    return { model, role, ok: false, firstMs, totalMs: Date.now() - started, error: error instanceof Error ? error.message : "failed" };
+  }
+}
+
+export async function probeModels(): Promise<ModelProbe[]> {
+  const provider = activeProvider();
+  if (provider !== "gemini") return [];
+  const smart = modelsFor(provider, "smart")[0];
+  const fast = modelsFor(provider, "fast")[0];
+  const list: Array<[string, string]> = smart === fast ? [[smart, "texts and quick tasks"]] : [[smart, "texts, lessons, chat"], [fast, "quick tasks, backup"]];
+  return Promise.all(list.map(([model, role]) => probeModel(model, role)));
 }

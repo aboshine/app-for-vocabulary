@@ -15,6 +15,19 @@ export function AiSettingsSection() {
   const [saved, setSaved] = useState(false);
   const [tr, setTr] = useState<{ lang: string; langName: string; remaining: number } | null>(null);
   const [translating, setTranslating] = useState(false);
+  const [probes, setProbes] = useState<Array<{ model: string; role: string; ok: boolean; firstMs: number | null; totalMs: number; error: string }> | null>(null);
+  const [probing, setProbing] = useState(false);
+
+  async function testSpeed() {
+    setProbing(true);
+    try {
+      setProbes(await api("/api/ai/test"));
+    } catch (err) {
+      setProbes([{ model: "test", role: "", ok: false, firstMs: null, totalMs: 0, error: err instanceof Error ? err.message : "failed" }]);
+    } finally {
+      setProbing(false);
+    }
+  }
   const [trTotal, setTrTotal] = useState(0);
 
   const loadTranslate = () => api<{ lang: string; langName: string; remaining: number }>("/api/vocabulary/translate").then(setTr).catch(() => undefined);
@@ -128,9 +141,23 @@ export function AiSettingsSection() {
         <section className="card">
           <h2 className="section-title" style={{ marginTop: 0 }}>AI connection</h2>
           {ai.configured ? (
-            <p className="muted" style={{ marginBottom: 0 }}>
-              Connected: {ai.provider} · texts: {ai.smartModel} · quick tasks: {ai.fastModel}
-            </p>
+            <>
+              <p className="muted">
+                Connected: {ai.provider} · texts: {ai.smartModel} · quick tasks: {ai.fastModel}
+              </p>
+              <button type="button" className="secondary" disabled={probing} onClick={() => void testSpeed()}>
+                {probing ? "Testing… (up to 15 s)" : "Test AI speed"}
+              </button>
+              {probes?.map((p) => (
+                <p key={p.model} style={{ margin: "8px 0 0" }} className="wrap-anywhere">
+                  <strong>{p.model}</strong> <span className="muted">({p.role})</span>
+                  <br />
+                  {p.ok
+                    ? `first words after ${((p.firstMs ?? 0) / 1000).toFixed(1)} s, done in ${(p.totalMs / 1000).toFixed(1)} s`
+                    : <span className="error">failed after {(p.totalMs / 1000).toFixed(1)} s: {p.error}</span>}
+                </p>
+              ))}
+            </>
           ) : (
             <>
               <p className="muted">Not connected. To use the free Google Gemini tier:</p>
