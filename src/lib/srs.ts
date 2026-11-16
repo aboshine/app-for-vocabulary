@@ -8,7 +8,9 @@ export type ReviewDirection =
   | "sentence-production"
   | "typing"
   /** the word was met as a target word in a daily reading text (not a flashcard mode) */
-  | "reading";
+  | "reading"
+  /** answered wrong in the weekly check (not a flashcard mode) */
+  | "weekly";
 
 export const LEARNING_STATES: LearningState[] = ["new", "learning", "learned"];
 export const RATINGS: Rating[] = ["again", "hard", "good", "easy"];
@@ -20,6 +22,7 @@ export const DIRECTIONS: ReviewDirection[] = [
   "sentence-production",
   "typing",
   "reading",
+  "weekly",
 ];
 
 export interface SrsInput {

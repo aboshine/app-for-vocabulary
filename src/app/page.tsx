@@ -4,46 +4,43 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Status } from "@/components/Status";
 import { api } from "@/lib/api";
+import type { PlanView } from "@/lib/plan-service";
 
-interface DashboardData {
-  today: { overdue: number; due: number; new: number; recommended: number };
-  progress: { reviewedToday: number; remaining: number; learning: number; learned: number; total: number };
+interface StatsData {
   retention: { days7: number | null; days30: number | null };
-  difficult: Array<{ id: string; korean: string; meaning: string; successRate: number; reviews: number }>;
-  recent: Array<{
-    id: string;
-    vocabularyId: string;
-    korean: string;
-    meaning: string;
-    rating: string;
-    direction: string;
-    createdAt: string;
-  }>;
   categories: Array<{ id: string | null; name: string; total: number; learned: number }>;
 }
 
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 function percent(value: number | null): string {
-  return value == null ? "Not enough data" : `${Math.round(value * 100)}%`;
+  return value == null ? "—" : `${Math.round(value * 100)}%`;
 }
 
-export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
+export default function TodayPage() {
+  const [plan, setPlan] = useState<PlanView | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<DashboardData>("/api/stats")
-      .then(setData)
+    api<PlanView>("/api/plan")
+      .then(setPlan)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
+    api<StatsData>("/api/stats")
+      .then(setStats)
+      .catch(() => undefined); // extra numbers only
   }, []);
 
-  const empty = data && data.progress.total === 0;
+  const empty = plan && plan.deck.total === 0;
+  const nextStep = plan?.steps.find((s) => !s.done && !s.optional) ?? plan?.steps.find((s) => !s.done);
 
   return (
     <main>
       <div className="header">
         <h1>Today</h1>
+        {plan ? <span className="badge">~{plan.plan.minutes} min a day</span> : null}
       </div>
-      <Status loading={!data && !error} error={error}>
+      <Status loading={!plan && !error} error={error}>
         {empty ? (
           <section className="card">
             <p>No vocabulary yet.</p>
@@ -52,84 +49,123 @@ export default function DashboardPage() {
             <Link className="cta secondary-cta" href="/vocabulary/new">Add your first word</Link>
           </section>
         ) : null}
-        {data && !empty ? (
+        {plan && !empty ? (
           <>
-            <section className="grid" style={{ marginBottom: 12 }}>
-              <Stat label="Overdue" value={data.today.overdue} />
-              <Stat label="Due today" value={data.today.due} />
-              <Stat label="New cards" value={data.today.new} />
-              <Stat label="Recommended" value={data.today.recommended} />
+            <section className="card hero">
+              <div className="hero-top">
+                <span className={plan.streak.todayDone ? "flame" : "flame off"}>🔥 {plan.streak.current}</span>
+                <div className="hero-text">
+                  <p>
+                    <strong>
+                      {plan.complete
+                        ? "Today's plan is done. 잘했어요!"
+                        : plan.streak.todayDone
+                          ? "Today counts. Finish the plan if you can."
+                          : plan.streak.atRisk
+                            ? `Keep your ${plan.streak.current}-day streak alive`
+                            : "Start a streak today"}
+                    </strong>
+                  </p>
+                  <p className="muted">
+                    {plan.streak.todayDone
+                      ? `${plan.reviewedToday} cards today · best streak ${plan.streak.best}`
+                      : `${Math.max(0, plan.streakMin - plan.reviewedToday)} more cards make today count`}
+                  </p>
+                </div>
+              </div>
+              <div className="dots" aria-label="This week">
+                {plan.week.map((d, i) => (
+                  <span key={d.day} className={["dot", d.active ? "active" : "", d.today ? "today" : "", d.future ? "future" : ""].join(" ")}>
+                    <i />
+                    {WEEKDAYS[i]}
+                  </span>
+                ))}
+              </div>
             </section>
-            <Link className="cta" href="/reading">📖 Read today&apos;s text</Link>
-            <Link className="cta secondary-cta" href="/review?today=1">Start Today&apos;s Review</Link>
+
+            {nextStep && !plan.complete ? (
+              <Link className="cta" href={nextStep.href}>
+                {nextStep.title}{plan.minutesLeft ? ` · ~${plan.minutesLeft} min left` : ""} →
+              </Link>
+            ) : null}
+
+            <h2 className="section-title">Today&apos;s plan</h2>
+            <section className="card" style={{ marginBottom: 16, paddingTop: 4, paddingBottom: 4 }}>
+              {plan.steps.map((step) => (
+                <Link className={step.done ? "step done" : "step"} href={step.href} key={step.key}>
+                  <span className="check">{step.done ? "✓" : ""}</span>
+                  <span className="step-body">
+                    <p className="step-title">{step.title}</p>
+                    <p className="muted">{step.detail}{step.optional && !step.done ? " · optional" : ""}</p>
+                  </span>
+                  {!step.done ? <span className="go">Go →</span> : null}
+                </Link>
+              ))}
+            </section>
+
+            {plan.lastWeekly ? (
+              <section className="card notice" style={{ marginBottom: 16 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>
+                    Last weekly check: {plan.lastWeekly.score}/{plan.lastWeekly.total}
+                    {plan.lastWeekly.delta !== 0 ? ` · new words ${plan.lastWeekly.delta > 0 ? "+" : ""}${plan.lastWeekly.delta}/day` : ""}
+                  </strong>
+                </p>
+                <p className="muted" style={{ margin: "4px 0 0" }}>{plan.lastWeekly.message}</p>
+                <p style={{ margin: "6px 0 0" }}>
+                  <Link className="link" href="/weekly">{plan.weeklyDue ? "Take this week's check →" : "See results →"}</Link>
+                </p>
+              </section>
+            ) : null}
+
+            {plan.weakCount > 0 ? (
+              <>
+                <h2 className="section-title">Words that will not stick ({plan.weakCount})</h2>
+                <section className="compact card" style={{ marginBottom: 8 }}>
+                  {plan.weak.map((word) => (
+                    <div className="compact-row" key={word.id}>
+                      <div>
+                        <strong>{word.korean}</strong>
+                        <p className="muted" style={{ margin: 0 }}>{word.meaning}</p>
+                      </div>
+                      <div className="row">
+                        <span className="badge">{Math.round(word.successRate * 100)}%</span>
+                        <Link className="link" href={`/vocabulary/${word.id}?help=1`}>Help me remember</Link>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+                <Link className="cta secondary-cta" href="/review?weak=1">Practise these words</Link>
+              </>
+            ) : null}
+
             <h2 className="section-title">Progress</h2>
             <section className="grid" style={{ marginBottom: 16 }}>
-              <Stat label="Today's reviewed" value={data.progress.reviewedToday} />
-              <Stat label="Today's remaining" value={data.progress.remaining} />
-              <Stat label="Learning" value={data.progress.learning} />
-              <Stat label="Learned" value={data.progress.learned} />
-              <Stat label="Total vocabulary" value={data.progress.total} />
+              <Stat label="Learned" value={String(plan.deck.learned)} />
+              <Stat label="Learning" value={String(plan.deck.learning)} />
+              <Stat label="New, waiting" value={String(plan.deck.new)} />
+              <Stat label="New words a day" value={String(plan.plan.newPerDay)} />
+              <Stat label="7-day accuracy" value={percent(stats?.retention.days7 ?? null)} />
+              <Stat label="30-day accuracy" value={percent(stats?.retention.days30 ?? null)} />
             </section>
-            <h2 className="section-title">Retention</h2>
-            <section className="grid" style={{ marginBottom: 16 }}>
-              <section className="card">
-                <p className="muted">7-day accuracy</p>
-                <p className="stat">{percent(data.retention.days7)}</p>
-              </section>
-              <section className="card">
-                <p className="muted">30-day accuracy</p>
-                <p className="stat">{percent(data.retention.days30)}</p>
-              </section>
-            </section>
-            <h2 className="section-title">Difficult words</h2>
-            {data.difficult.length === 0 ? (
-              <p className="muted">No difficult words yet. Review more cards to see this list.</p>
-            ) : (
-              <div className="compact card" style={{ marginBottom: 16 }}>
-                {data.difficult.map((word) => (
-                  <div className="compact-row" key={word.id}>
-                    <div>
-                      <strong>{word.korean}</strong>
-                      <p className="muted">{word.meaning}</p>
+            <div className="row" style={{ marginBottom: 16 }}>
+              <Link className="link" href="/tutor">Ask the teacher →</Link>
+              <Link className="link" href="/weekly">Weekly checks →</Link>
+            </div>
+
+            {stats && stats.categories.length > 0 ? (
+              <>
+                <h2 className="section-title">Categories</h2>
+                <div className="compact card">
+                  {stats.categories.map((category) => (
+                    <div className="compact-row" key={category.id ?? "none"}>
+                      <strong>{category.name}</strong>
+                      <span className="muted">{category.learned}/{category.total} learned</span>
                     </div>
-                    <div className="row">
-                      <span className="badge">{Math.round(word.successRate * 100)}%</span>
-                      <Link href={`/vocabulary/${word.id}`}>Open</Link>
-                      <Link href={`/review?word=${word.id}`}>Review</Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <h2 className="section-title">Recent activity</h2>
-            {data.recent.length === 0 ? (
-              <p className="muted">No reviews yet today.</p>
-            ) : (
-              <div className="compact card" style={{ marginBottom: 16 }}>
-                {data.recent.map((item) => (
-                  <div className="compact-row" key={item.id}>
-                    <Link href={`/vocabulary/${item.vocabularyId}`}>
-                      <strong>{item.korean}</strong>
-                      <p className="muted">{item.meaning}</p>
-                    </Link>
-                    <span className="badge">{item.rating} · {item.direction}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <h2 className="section-title">Categories</h2>
-            {data.categories.length === 0 ? (
-              <p className="muted">No categories yet.</p>
-            ) : (
-              <div className="compact card">
-                {data.categories.map((category) => (
-                  <div className="compact-row" key={category.id ?? "none"}>
-                    <strong>{category.name}</strong>
-                    <span className="muted">{category.learned}/{category.total} learned</span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              </>
+            ) : null}
           </>
         ) : null}
       </Status>
@@ -137,7 +173,7 @@ export default function DashboardPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <section className="card">
       <p className="muted">{label}</p>

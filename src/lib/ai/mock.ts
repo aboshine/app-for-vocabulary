@@ -8,6 +8,11 @@ export function mockResponse(request: AiRequest): string {
   const task = request.system.match(/TASK: (\w+)/)?.[1];
   if (task === "fill") return JSON.stringify(mockFill(request.prompt));
   if (task === "pack") return JSON.stringify(mockPack(request.prompt));
+  if (task === "explain") return JSON.stringify(mockExplain(request.prompt));
+  if (task === "lesson") return JSON.stringify(mockLesson(request.prompt));
+  if (task === "wordhelp") return JSON.stringify(mockWordHelp(request.prompt));
+  if (task === "chat") return "Тестовый ответ учителя (AI_PROVIDER=mock).\n저는 학생이에요.\nЯ студент.";
+  if (task === "weeklynote") return "Тестовый комментарий учителя (AI_PROVIDER=mock).";
   return JSON.stringify(mockReading(request.prompt));
 }
 
@@ -111,5 +116,50 @@ function mockPack(prompt: string) {
       exampleTranslation: `Это пример ${i + 1}.`,
       notes: "сущ.",
     })),
+  };
+}
+
+function mockExplain(prompt: string) {
+  const text = prompt.split('"""')[1]?.trim() ?? "";
+  const sentences = text.split(/(?<=[.!?。])\s+/).filter(Boolean);
+  return {
+    sentences: sentences.map((ko) => ({
+      ko,
+      tr: `Перевод: ${ko}`,
+      parts: ko.split(/\s+/).map((chunk) => ({ chunk, base: chunk.replace(/[.,!?]+$/, ""), explain: "тестовое объяснение" })),
+      grammar: [{ pattern: "-아요/어요", explain: "Вежливое окончание настоящего времени.", compare: "" }],
+    })),
+    tip: "Тестовый совет (AI_PROVIDER=mock).",
+  };
+}
+
+function mockLesson(prompt: string) {
+  const pattern = prompt.match(/Grammar point: (.+)/)?.[1]?.trim() ?? "-고";
+  return {
+    title: pattern,
+    meaning: "тестовое значение",
+    structure: "после гласной: 가다 → 가고\nпосле согласной: 먹다 → 먹고",
+    explanation: "Тестовое объяснение (AI_PROVIDER=mock). Соединяет два действия.",
+    compare: "",
+    examples: [
+      { ko: "밥을 먹고 학교에 가요.", tr: "Ем и иду в университет." },
+      { ko: "책을 읽고 자요.", tr: "Читаю книгу и ложусь спать." },
+    ],
+    mistake: "Не путайте с -아서/어서.",
+    exercises: [
+      { q: "밥을 ___ 학교에 가요.", options: ["먹고", "먹면", "먹지만", "먹어서"], answer: 0, explain: "Просто последовательность действий." },
+      { q: "책을 ___ 자요.", options: ["읽면", "읽고", "읽지만", "읽으러"], answer: 1, explain: "Сначала читаю, потом сплю." },
+    ],
+  };
+}
+
+function mockWordHelp(prompt: string) {
+  const korean = prompt.match(/Word: (.+)/)?.[1]?.trim() ?? "단어";
+  return {
+    parts: "",
+    hook: `Тестовая подсказка для «${korean}» (AI_PROVIDER=mock).`,
+    collocations: [`${korean} 하나 (один)`],
+    confusedWith: [],
+    examples: [{ ko: `저는 ${korean}을/를 좋아해요.`, tr: `Мне нравится ${korean}.` }],
   };
 }

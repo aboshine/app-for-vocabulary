@@ -22,6 +22,8 @@ export interface AiRequest {
   tier?: AiTier;
   temperature?: number;
   maxOutputTokens?: number;
+  /** false = free-text answer (tutor chat); default is a JSON answer */
+  json?: boolean;
 }
 
 export interface AiResult<T> {
@@ -114,6 +116,31 @@ export async function generateJson<T>(
   );
 }
 
+/** Free-text answer (used by the tutor chat). Same providers and fallback as generateJson. */
+export async function generateText(request: AiRequest): Promise<AiResult<string>> {
+  const provider = activeProvider();
+  if (!provider) {
+    throw new AiError(
+      "AI is not configured. Add GEMINI_API_KEY to the environment (free key: https://aistudio.google.com/apikey).",
+      503,
+    );
+  }
+  const req = { ...request, json: false };
+  let lastError: unknown = null;
+  for (const model of modelsFor(provider, request.tier ?? "fast")) {
+    try {
+      const text =
+        provider === "mock" ? mockResponse(req) : provider === "gemini" ? await callGemini(model, req) : await callAnthropic(model, req);
+      if (text.trim()) return { data: text.trim(), model };
+      lastError = new AiError("The AI returned an empty answer.", 502, true);
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof AiError) || !error.retryable) throw error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new AiError("The AI did not answer. Try again.");
+}
+
 async function callGemini(model: string, request: AiRequest): Promise<string> {
   const response = await fetchWithTimeout(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -127,7 +154,7 @@ async function callGemini(model: string, request: AiRequest): Promise<string> {
         systemInstruction: { parts: [{ text: request.system }] },
         contents: [{ role: "user", parts: [{ text: request.prompt }] }],
         generationConfig: {
-          responseMimeType: "application/json",
+          ...(request.json === false ? {} : { responseMimeType: "application/json" }),
           temperature: request.temperature ?? 0.7,
           maxOutputTokens: request.maxOutputTokens ?? 8192,
         },
@@ -162,7 +189,10 @@ async function callAnthropic(model: string, request: AiRequest): Promise<string>
       model,
       max_tokens: request.maxOutputTokens ?? 8192,
       temperature: request.temperature ?? 0.7,
-      system: `${request.system}\n\nRespond with a single JSON object only, no prose and no code fences.`,
+      system:
+        request.json === false
+          ? request.system
+          : `${request.system}\n\nRespond with a single JSON object only, no prose and no code fences.`,
       messages: [{ role: "user", content: request.prompt }],
     }),
   });

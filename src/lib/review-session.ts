@@ -176,3 +176,27 @@ export function startSession(
 ): Array<SessionCard & { mode: ReviewMode }> {
   return assignQueueModes(buildSessionQueue(cards, config, now), config.mode, config.mixedModes);
 }
+
+/** How many extra times a card rated "again" comes back within the same session. */
+export const MAX_SESSION_REPEATS = 2;
+
+/**
+ * Queue after the first card was rated. A card rated "again" is not dropped: it
+ * returns a few cards later (so the answer has left short-term memory), at most
+ * MAX_SESSION_REPEATS times per session.
+ */
+export function advanceQueue<T extends { id: string }>(
+  queue: T[],
+  rating: "again" | "hard" | "good" | "easy",
+  repeats: Map<string, number>,
+  gap = 3,
+): T[] {
+  const [first, ...rest] = queue;
+  if (!first) return [];
+  if (rating !== "again") return rest;
+  const used = repeats.get(first.id) ?? 0;
+  if (used >= MAX_SESSION_REPEATS) return rest;
+  repeats.set(first.id, used + 1);
+  const at = Math.min(gap, rest.length);
+  return [...rest.slice(0, at), first, ...rest.slice(at)];
+}

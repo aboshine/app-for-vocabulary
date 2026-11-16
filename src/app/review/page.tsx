@@ -14,6 +14,7 @@ import {
   type ReviewMode,
 } from "@/lib/review-modes";
 import {
+  advanceQueue,
   previewSession,
   SESSION_LIMITS,
   startSession,
@@ -49,6 +50,9 @@ export default function ReviewPage() {
   const [submitted, setSubmitted] = useState(false);
   const [busy, setBusy] = useState(false);
   const typingInputRef = useRef<HTMLInputElement>(null);
+  const weakRequested = useRef(false);
+  /** how many times each card already came back after "Again" in this session */
+  const repeats = useRef(new Map<string, number>());
   const [settingsReady, setSettingsReady] = useState(false);
   const [config, setConfig] = useState<SessionConfig>(() => sessionConfigFromSettings(DEFAULT_SETTINGS));
 
@@ -113,6 +117,23 @@ export default function ReviewPage() {
         .catch((err) => setError(err instanceof Error ? err.message : "Word not found"));
       return;
     }
+    if (params.get("weak") === "1") {
+      if (weakRequested.current) return;
+      weakRequested.current = true;
+      api<Array<SessionCard & { nextReviewAt: string; learningState: string }>>("/api/review/pool?weak=1")
+        .then((rows) => {
+          const cards: SessionCard[] = rows.map((row) => ({
+            ...row,
+            learningState: row.learningState as LearningState,
+            nextReviewAt: new Date(row.nextReviewAt),
+            categoryId: row.categoryId ?? null,
+          }));
+          setQueue(assignQueueModes(cards, "mixed"));
+          setStarted(true);
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load weak words"));
+      return;
+    }
     if (!pool || !settingsReady) return;
     if (params.get("today") !== "1") return;
     setQueue(startSession(pool, config, new Date()));
@@ -139,6 +160,7 @@ export default function ReviewPage() {
 
   function begin() {
     if (!pool) return;
+    repeats.current = new Map();
     setQueue(startSession(pool, config, new Date()));
     setStarted(true);
     setRevealed(false);
@@ -184,7 +206,7 @@ export default function ReviewPage() {
               },
         ),
       });
-      setQueue((prev) => prev?.slice(1) ?? []);
+      setQueue((prev) => (prev ? advanceQueue(prev, rating, repeats.current) : []));
       setRevealed(false);
       setTyped("");
       setSubmitted(false);
@@ -441,7 +463,10 @@ export default function ReviewPage() {
         ) : null}
       </Status>
       {queue?.length === 0 ? (
-        <button type="button" style={{ marginTop: 12 }} onClick={reset}>New session</button>
+        <div className="row" style={{ marginTop: 12 }}>
+          <button type="button" onClick={() => router.push("/")}>Back to today&apos;s plan</button>
+          <button type="button" className="secondary" onClick={reset}>New session</button>
+        </div>
       ) : null}
     </main>
   );

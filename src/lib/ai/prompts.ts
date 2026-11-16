@@ -1,8 +1,13 @@
 import { asArray, asObject, str } from "./json";
 
-export type TranslationLang = "ru" | "en";
+export type TranslationLang = "ru" | "en" | "kk";
 
-export const LANG_NAMES: Record<TranslationLang, string> = { ru: "Russian", en: "English" };
+export const TRANSLATION_LANGS: TranslationLang[] = ["ru", "en", "kk"];
+export const LANG_NAMES: Record<TranslationLang, string> = { ru: "Russian", en: "English", kk: "Kazakh (Cyrillic script)" };
+
+export function parseLang(value: unknown, fallback: TranslationLang = "ru"): TranslationLang {
+  return TRANSLATION_LANGS.includes(value as TranslationLang) ? (value as TranslationLang) : fallback;
+}
 
 export const LEVELS = [1, 2, 3, 4, 5, 6] as const;
 export type Level = (typeof LEVELS)[number];

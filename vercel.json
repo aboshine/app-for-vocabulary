@@ -1,3 +1,7 @@
 {
-  "buildCommand": "prisma generate && prisma migrate deploy && next build"
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "crons": [
+    { "path": "/api/cron/remind?kind=morning", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/remind?kind=evening", "schedule": "0 12 * * *" }
+  ]
 }

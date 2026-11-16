@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { parseLevel, type Level, type TranslationLang } from "./ai/prompts";
+import { parseLang, parseLevel, type Level, type TranslationLang } from "./ai/prompts";
 import { DEFAULT_SETTINGS, SETTINGS_ID, settingsToRow } from "./settings";
 
 /**
@@ -44,7 +44,7 @@ function intIn(value: unknown, min: number, max: number, fallback: number): numb
 export function parseAiSettings(input: Partial<Record<keyof AiSettings, unknown>>, base = DEFAULT_AI_SETTINGS): AiSettings {
   return {
     level: input.level === undefined ? base.level : parseLevel(input.level, base.level),
-    lang: input.lang === "en" || input.lang === "ru" ? input.lang : base.lang,
+    lang: input.lang === undefined ? base.lang : parseLang(input.lang, base.lang),
     currentTheme: typeof input.currentTheme === "string" ? input.currentTheme.trim().slice(0, 40) : base.currentTheme,
     targetsPerText: intIn(input.targetsPerText, 3, 12, base.targetsPerText),
     packSize: intIn(input.packSize, 3, 20, base.packSize),

@@ -122,6 +122,10 @@ model AppSettings {
   currentTheme      String   @default("")
   targetsPerText    Int      @default(8)
   packSize          Int      @default(8)
+  /// Study plan + reminders (see src/lib/plan.ts, src/lib/telegram.ts)
+  dailyMinutes      Int      @default(15)
+  telegramChatId    String   @default("")
+  remindersOn       Boolean  @default(true)
   updatedAt         DateTime @updatedAt
 }
 
@@ -141,4 +145,33 @@ model DailyText {
   createdAt   DateTime  @default(now())
 
   @@index([day])
+}
+
+/// Weekly self-test. `questions` / `summary` hold JSON (see src/lib/weekly.ts).
+model WeeklyCheck {
+  id          String    @id @default(cuid())
+  questions   String
+  summary     String    @default("")
+  score       Int       @default(0)
+  total       Int       @default(0)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+/// AI grammar lesson for one syllabus pattern. `payload` is LessonPayload JSON (src/lib/ai/tutor-prompts.ts).
+model GrammarLesson {
+  id          String    @id @default(cuid())
+  /// key from src/data/grammar-syllabus.ts
+  patternKey  String
+  title       String
+  lang        String    @default("")
+  payload     String
+  /// Grammar card created when the lesson was finished
+  grammarId   String    @default("")
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([patternKey])
 }
