@@ -1,5 +1,5 @@
 import { prisma } from "./db";
-import { startOfDay } from "./srs";
+import { startOfLocalDay } from "./day";
 import {
   DEFAULT_SETTINGS,
   SETTINGS_ID,
@@ -9,7 +9,7 @@ import {
 } from "./settings";
 
 export async function countNewIntroducedToday(now = new Date()) {
-  const dayStart = startOfDay(now);
+  const dayStart = startOfLocalDay(now);
   const groups = await prisma.review.groupBy({
     by: ["vocabularyId"],
     _min: { createdAt: true },

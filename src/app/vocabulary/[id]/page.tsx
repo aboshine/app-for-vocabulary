@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Status } from "@/components/Status";
+import { WordHelpCard } from "@/components/WordHelpCard";
 import { api } from "@/lib/api";
 
 interface Detail {
@@ -38,6 +39,12 @@ export default function VocabDetailPage() {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [autoHelp, setAutoHelp] = useState(false);
+
+  useEffect(() => {
+    // ?help=1 (from "Help me remember" links) asks the teacher right away
+    setAutoHelp(new URLSearchParams(window.location.search).get("help") === "1");
+  }, []);
 
   useEffect(() => {
     api<Detail>(`/api/vocabulary/${id}/detail`)
@@ -71,6 +78,7 @@ export default function VocabDetailPage() {
               <p className="answer">{data.meaning}</p>
               <p><span className="badge">{data.status}</span></p>
             </section>
+            <WordHelpCard key={`${data.id}-${autoHelp}`} vocabularyId={data.id} autoStart={autoHelp} />
             <section className="card" style={{ marginBottom: 12 }}>
               <dl className="detail-list">
                 <div><dt>Example</dt><dd>{data.exampleSentence || "—"}</dd></div>

@@ -56,9 +56,17 @@ export function AiSettingsSection() {
               Translations and explanations in
               <select value={settings.lang} onChange={(e) => save({ lang: e.target.value as AiSettings["lang"] })}>
                 <option value="ru">Русский</option>
+                <option value="kk">Қазақша</option>
                 <option value="en">English</option>
               </select>
             </label>
+            {settings.lang === "kk" ? (
+              <p className="muted" style={{ margin: 0 }}>
+                Kazakh: the teacher compares Korean grammar with Kazakh where they match. AI is a bit less
+                reliable in Kazakh than in Russian, so switch back if translations look odd. Built-in theme
+                packs keep their Russian meanings.
+              </p>
+            ) : null}
             <label>
               Target words per daily text
               <select value={settings.targetsPerText} onChange={(e) => save({ targetsPerText: Number(e.target.value) })}>

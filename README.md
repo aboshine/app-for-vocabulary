@@ -55,7 +55,19 @@ Open http://localhost:3000
 3. **Review** / **Grammar**: flashcards as before.
 4. **Add word → ✨ Fill with AI** fills meaning, example and notes.
 
-AI level, translation language and pack sizes are under **Settings → AI reading & word packs**.
+5. **Today** shows the daily plan (review → new words → text), your streak and the words that will not stick. A card rated *Again* comes back later in the same session.
+6. **Weekly check** (`/weekly`): once a week, a short test. Missed words return to review the same day and the result moves "new words a day" up or down.
+7. **Tutor**: ask the AI teacher anything, paste Korean text for a word-by-word breakdown, or take the next grammar lesson (it becomes a grammar card when finished). In **Read**, 🔍 breaks down a single sentence.
+
+### Telegram reminders (optional)
+
+1. In Telegram, `@BotFather` → `/newbot` → copy the token.
+2. Add `TELEGRAM_BOT_TOKEN` (and ideally `CRON_SECRET`, any long random string) to the environment, redeploy.
+3. Open the bot, press **Start**, then **Settings → Telegram reminders → Connect**.
+
+`vercel.json` schedules two cron calls a day: 00:00 UTC (09:00 Seoul, the plan) and 12:00 UTC (21:00 Seoul, only if the day is not done yet). On the Vercel Hobby plan cron times can drift by up to an hour.
+
+AI level, translation language (Русский / Қазақша / English) and pack sizes are under **Settings → AI reading & word packs**.
 Gemini is called over plain `fetch` (no SDK). If the main model hits a free-tier limit the app retries with the lighter one. `AI_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` switches to Claude; `AI_PROVIDER=mock` returns canned data for local UI work.
 
 ## Test

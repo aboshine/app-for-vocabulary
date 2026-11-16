@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Breakdown } from "@/components/Breakdown";
 import { Status } from "@/components/Status";
 import { api } from "@/lib/api";
 import type { ReadingToken } from "@/lib/ai/prompts";
+import type { ExplainPayload } from "@/lib/ai/tutor-prompts";
 import type { ReadingView } from "@/lib/reading";
 import { speakKorean, stopSpeaking } from "@/lib/speech";
 
@@ -135,6 +137,8 @@ function Reader({ view, onChange }: { view: ReadingView; onChange: (view: Readin
   const [added, setAdded] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** teacher's breakdown per sentence index: loading, the result, or an error text */
+  const [explained, setExplained] = useState<Record<number, ExplainPayload | "loading" | { error: string }>>({});
   const targetIds = useMemo(() => new Set(view.targets.map((t) => t.id)), [view.targets]);
 
   const fullText = payload.sentences.map((s) => s.ko).join(" ");
@@ -146,6 +150,30 @@ function Reader({ view, onChange }: { view: ReadingView; onChange: (view: Readin
       else next.add(index);
       return next;
     });
+  }
+
+  async function explain(index: number) {
+    const current = explained[index];
+    if (current === "loading") return;
+    if (current && !("error" in current)) {
+      // second tap hides the breakdown
+      setExplained((all) => {
+        const next = { ...all };
+        delete next[index];
+        return next;
+      });
+      return;
+    }
+    setExplained((all) => ({ ...all, [index]: "loading" }));
+    try {
+      const data = await api<ExplainPayload>("/api/tutor/explain", {
+        method: "POST",
+        body: JSON.stringify({ text: payload.sentences[index].ko }),
+      });
+      setExplained((all) => ({ ...all, [index]: data }));
+    } catch (err) {
+      setExplained((all) => ({ ...all, [index]: { error: err instanceof Error ? err.message : "Could not explain" } }));
+    }
   }
 
   async function addToDeck(token: ReadingToken, sentenceIndex: number) {
@@ -227,6 +255,7 @@ function Reader({ view, onChange }: { view: ReadingView; onChange: (view: Readin
                       <>
                         <button type="button" className="icon" aria-label="Play sentence" onClick={() => speakKorean(sentence.ko)}>▶</button>
                         <button type="button" className="icon" aria-label="Translate sentence" onClick={() => toggleTr(si)}>文</button>
+                        <button type="button" className="icon" aria-label="Explain sentence" onClick={() => void explain(si)}>🔍</button>
                       </>
                     ) : " "}
                   </span>
@@ -234,10 +263,18 @@ function Reader({ view, onChange }: { view: ReadingView; onChange: (view: Readin
               })}
             </p>
             {showAll || openTr.has(si) ? <p className="tr">{sentence.tr}</p> : null}
+            {explained[si] === "loading" ? <p className="muted">Your teacher is breaking it down…</p> : null}
+            {explained[si] && explained[si] !== "loading" ? (
+              "error" in (explained[si] as object) ? (
+                <p className="error">{(explained[si] as { error: string }).error}</p>
+              ) : (
+                <Breakdown data={explained[si] as ExplainPayload} showSentence={false} />
+              )
+            ) : null}
           </div>
         ))}
         <p className="muted legend">
-          <span className="tok target">target</span> words you are learning · <span className="tok known">dotted</span> already in your deck
+          <span className="tok target">target</span> words you are learning · <span className="tok known">dotted</span> already in your deck · 🔍 explains a sentence word by word
         </p>
       </section>
 

@@ -9,10 +9,11 @@ const links = [
   { href: "/reading", label: "Read" },
   { href: "/review", label: "Review" },
   { href: "/learn", label: "Learn" },
+  { href: "/tutor", label: "Tutor" },
   { href: "/vocabulary", label: "Words" },
   { href: "/grammar", label: "Grammar" },
-  { href: "/settings", label: "Settings" },
-];
+  { href: "/settings", label: "⚙", aria: "Settings" },
+] as Array<{ href: string; label: string; aria?: string }>;
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -27,7 +28,7 @@ export function Nav() {
       {links.map((link) => {
         const active = isActive(pathname, link.href);
         return (
-          <Link key={link.href} href={link.href} className={active ? "nav-link active" : "nav-link"}>
+          <Link key={link.href} href={link.href} aria-label={link.aria} className={active ? "nav-link active" : "nav-link"}>
             {link.label}
           </Link>
         );
