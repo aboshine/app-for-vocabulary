@@ -114,8 +114,31 @@ function Ask() {
     setBusy(true);
     setError(null);
     try {
-      const { reply } = await api<{ reply: string }>("/api/tutor/chat", { method: "POST", body: JSON.stringify({ messages: next }) });
-      setMessages([...next, { role: "teacher", content: reply }]);
+      const response = await fetch("/api/tutor/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: next }),
+      });
+      if (response.status === 401) {
+        window.location.href = `/login?next=${encodeURIComponent("/tutor")}`;
+        return;
+      }
+      if (!response.ok || !response.body) {
+        const failed = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(failed.error || `Request failed (${response.status})`);
+      }
+      // The answer arrives piece by piece: show it as it grows.
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let reply = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        reply += decoder.decode(value, { stream: true });
+        setMessagesState([...next, { role: "teacher", content: reply }]);
+      }
+      if (!reply.trim()) throw new Error("The teacher did not answer. Try again.");
+      setMessages([...next, { role: "teacher", content: reply.trim() }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The teacher did not answer");
       setMessages(messages); // give the question back so it can be sent again
@@ -141,7 +164,7 @@ function Ask() {
           {messages.map((m, i) => (
             <div className={`bubble ${m.role}`} key={i}>{m.content}</div>
           ))}
-          {busy ? <div className="bubble teacher muted">…</div> : null}
+          {busy && messages[messages.length - 1]?.role === "user" ? <div className="bubble teacher muted">…</div> : null}
           <div ref={endRef} />
         </div>
       )}
