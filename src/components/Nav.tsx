@@ -22,6 +22,7 @@ function isActive(pathname: string, href: string) {
 
 export function Nav() {
   const pathname = usePathname();
+  if (pathname === "/login") return null;
 
   return (
     <nav className="nav" aria-label="Main">

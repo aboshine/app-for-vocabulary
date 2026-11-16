@@ -9,10 +9,13 @@ import type { Adjustment } from "./plan";
 export const WEEKLY_INTERVAL_DAYS = 7;
 export const WEEKLY_MIN_STUDIED = 8;
 
-export type WeeklyKind = "ko-choice" | "meaning-choice" | "typing";
+export type WeeklyKind = "ko-choice" | "meaning-choice" | "typing" | "grammar";
 
 export interface WeeklyQuestion {
+  /** "" for grammar questions */
   vocabularyId: string;
+  /** Grammar card id, for grammar questions only */
+  grammarId?: string;
   kind: WeeklyKind;
   /** what is shown */
   prompt: string;
@@ -107,6 +110,7 @@ export function buildWeeklyQuestions(chosen: WeeklyWord[], deck: WeeklyWord[], r
 
 export interface WeeklyResultRow {
   vocabularyId: string;
+  grammarId?: string;
   kind: WeeklyKind;
   prompt: string;
   answer: string;
@@ -118,7 +122,7 @@ export function gradeWeekly(questions: WeeklyQuestion[], answers: string[]): Wee
   return questions.map((q, i) => {
     const given = String(answers[i] ?? "").trim();
     const correct = q.kind === "typing" ? isTypingAnswerCorrect(given, q.answer) : given === q.answer;
-    return { vocabularyId: q.vocabularyId, kind: q.kind, prompt: q.prompt, answer: q.answer, given, correct };
+    return { vocabularyId: q.vocabularyId, ...(q.grammarId ? { grammarId: q.grammarId } : {}), kind: q.kind, prompt: q.prompt, answer: q.answer, given, correct };
   });
 }
 
@@ -129,6 +133,31 @@ export interface WeeklySummary {
   adjustment: Adjustment;
   /** short note from the AI teacher ("" when AI is off or failed) */
   comment: string;
+}
+
+export const WEEKLY_GRAMMAR_QUESTIONS = 3;
+
+export interface FinishedLesson {
+  grammarId: string;
+  exercises: Array<{ q: string; options: string[]; answer: number }>;
+}
+
+/** Up to 3 grammar questions, one exercise from each of a few finished lessons. */
+export function buildGrammarQuestions(lessons: FinishedLesson[], rng: Rng = Math.random, max = WEEKLY_GRAMMAR_QUESTIONS): WeeklyQuestion[] {
+  const usable = lessons.filter((l) => l.grammarId && l.exercises.some((e) => e.options[e.answer] !== undefined));
+  return shuffle(usable, rng)
+    .slice(0, max)
+    .map((lesson) => {
+      const exercise = shuffle(lesson.exercises.filter((e) => e.options[e.answer] !== undefined), rng)[0];
+      return {
+        vocabularyId: "",
+        grammarId: lesson.grammarId,
+        kind: "grammar" as const,
+        prompt: exercise.q,
+        options: shuffle(exercise.options, rng),
+        answer: exercise.options[exercise.answer],
+      };
+    });
 }
 
 /** Hide the answers before sending questions to the browser. */

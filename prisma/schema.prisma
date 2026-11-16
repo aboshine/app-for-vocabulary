@@ -42,6 +42,8 @@ model Vocabulary {
   source             String    @default("manual")
   /// e.g. "TOPIK1", "TOPIK2"; empty for words added by hand
   level              String    @default("")
+  /// language of `meaning` ("ru" | "en" | "kk"; "" = typed by hand, unknown)
+  meaningLang        String    @default("")
   reviews            Review[]
 
   @@index([nextReviewAt])
@@ -174,4 +176,27 @@ model GrammarLesson {
   createdAt   DateTime  @default(now())
 
   @@index([patternKey])
+}
+
+/// Saved AI answers (sentence breakdowns, word help) so the same question is not paid for twice.
+model TutorCache {
+  /// sha256 of task + language + level + input
+  key       String   @id
+  task      String
+  payload   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// One writing exercise: the learner's sentences and the teacher's corrections (JSON).
+model WritingEntry {
+  id        String   @id @default(cuid())
+  /// comma-separated Vocabulary ids the task asked for
+  wordIds   String   @default("")
+  text      String
+  feedback  String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

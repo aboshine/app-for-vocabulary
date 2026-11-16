@@ -19,6 +19,7 @@ const LABEL: Record<WeeklyKind, string> = {
   "ko-choice": "What does it mean?",
   "meaning-choice": "Which Korean word is it?",
   typing: "Type it in Korean",
+  grammar: "Grammar: choose the right answer",
 };
 
 export default function WeeklyPage() {
@@ -122,16 +123,18 @@ export default function WeeklyPage() {
             ) : null}
             {missed.length ? (
               <>
-                <h2 className="section-title">Missed words ({missed.length}) — back in today&apos;s review</h2>
+                <h2 className="section-title">Missed ({missed.length}) — back in today&apos;s review</h2>
                 <section className="compact card" style={{ marginBottom: 12 }}>
                   {missed.map((row, i) => (
                     <div className="compact-row" key={i}>
                       <div>
-                        <strong>{row.kind === "ko-choice" ? row.prompt : row.answer}</strong>
-                        <p className="muted" style={{ margin: 0 }}>{row.kind === "ko-choice" ? row.answer : row.prompt}</p>
+                        <strong>{row.kind === "ko-choice" || row.kind === "grammar" ? row.prompt : row.answer}</strong>
+                        <p className="muted" style={{ margin: 0 }}>{row.kind === "ko-choice" || row.kind === "grammar" ? row.answer : row.prompt}</p>
                         <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>you answered: {row.given || "—"}</p>
                       </div>
-                      <Link className="link" href={`/vocabulary/${row.vocabularyId}?help=1`}>Help</Link>
+                      <Link className="link" href={row.grammarId ? `/grammar/${row.grammarId}` : `/vocabulary/${row.vocabularyId}?help=1`}>
+                        {row.grammarId ? "Rule" : "Help"}
+                      </Link>
                     </div>
                   ))}
                 </section>
@@ -197,7 +200,7 @@ export default function WeeklyPage() {
             <section className="card" style={{ marginBottom: 16 }}>
               <p><strong>{state.due ? "This week's check is ready" : "A short test on what you studied"}</strong></p>
               <p className="muted">
-                12–20 quick questions on this week&apos;s words plus a few older ones. No hints. Words you miss come
+                12–20 quick questions on this week&apos;s words, a few older ones and the grammar lessons you finished. No hints. Words you miss come
                 back into review today, and the result sets how many new words you get next week.
               </p>
               <button type="button" className="wide" disabled={busy} onClick={() => void start()}>

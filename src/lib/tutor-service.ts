@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { findSyllabusItem, GRAMMAR_SYLLABUS, nextSyllabusItem } from "@/data/grammar-syllabus";
 import { generateJson, generateText } from "./ai/client";
 import {
@@ -16,23 +17,42 @@ import { prisma } from "./db";
 import { weakWords } from "./plan-service";
 import { LIMITS, serializeExamples } from "./validation";
 
-export async function explainText(text: string) {
-  const clean = text.trim();
-  if (!clean) throw new Error("Paste a Korean sentence first.");
-  if (!/[가-힣]/.test(clean)) throw new Error("That does not look like Korean text.");
-  const settings = await getAiSettings();
-  const { system, prompt } = explainPrompt(clean, settings.level, settings.lang);
-  const { data } = await generateJson({ system, prompt, tier: "smart", temperature: 0.3 }, validateExplain);
+/** Run an AI task once and remember the answer, so asking the same thing again is instant and free. */
+async function cached<T>(task: string, parts: Array<string | number>, produce: () => Promise<T>): Promise<T> {
+  const key = createHash("sha256").update([task, ...parts].join("\u0001")).digest("hex");
+  const hit = await prisma.tutorCache.findUnique({ where: { key } });
+  if (hit) {
+    try {
+      return JSON.parse(hit.payload) as T;
+    } catch {
+      // broken row: fall through and overwrite it
+    }
+  }
+  const data = await produce();
+  const payload = JSON.stringify(data);
+  await prisma.tutorCache.upsert({ where: { key }, create: { key, task, payload }, update: { payload } }).catch(() => undefined);
   return data;
+}
+
+export async function explainText(text: string) {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (!clean) throw new Error("Paste a Korean sentence first.");
+  if (!/[\uAC00-\uD7A3]/.test(clean)) throw new Error("That does not look like Korean text.");
+  const settings = await getAiSettings();
+  return cached("explain", [settings.lang, settings.level, clean], async () => {
+    const { system, prompt } = explainPrompt(clean, settings.level, settings.lang);
+    return (await generateJson({ system, prompt, tier: "smart", temperature: 0.3 }, validateExplain)).data;
+  });
 }
 
 export async function wordHelp(vocabularyId: string) {
   const word = await prisma.vocabulary.findUnique({ where: { id: vocabularyId }, select: { korean: true, meaning: true } });
   if (!word) throw new Error("Word not found");
   const settings = await getAiSettings();
-  const { system, prompt } = wordHelpPrompt({ ...word, level: settings.level, lang: settings.lang });
-  const { data } = await generateJson({ system, prompt, tier: "smart", temperature: 0.7 }, validateWordHelp);
-  return data;
+  return cached("wordhelp", [settings.lang, settings.level, word.korean, word.meaning], async () => {
+    const { system, prompt } = wordHelpPrompt({ ...word, level: settings.level, lang: settings.lang });
+    return (await generateJson({ system, prompt, tier: "smart", temperature: 0.7 }, validateWordHelp)).data;
+  });
 }
 
 export async function chat(messages: ChatMessage[]) {

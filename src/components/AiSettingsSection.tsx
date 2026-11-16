@@ -13,12 +13,39 @@ export function AiSettingsSection() {
   const [ai, setAi] = useState<AiStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [tr, setTr] = useState<{ lang: string; langName: string; remaining: number } | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [trTotal, setTrTotal] = useState(0);
+
+  const loadTranslate = () => api<{ lang: string; langName: string; remaining: number }>("/api/vocabulary/translate").then(setTr).catch(() => undefined);
+
+  /** Translate card meanings batch by batch until none are left (or an error stops it). */
+  async function translateAll() {
+    if (!tr || translating) return;
+    setTranslating(true);
+    setError(null);
+    setTrTotal(tr.remaining);
+    try {
+      let remaining = tr.remaining;
+      while (remaining > 0) {
+        const step = await api<{ translated: number; lang: string; langName: string; remaining: number }>("/api/vocabulary/translate", { method: "POST" });
+        setTr(step);
+        if (step.remaining >= remaining) break; // no progress: stop instead of looping forever
+        remaining = step.remaining;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? `${err.message} You can press the button again to continue.` : "Translation stopped");
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([api<AiSettings>("/api/ai/settings"), api<AiStatus>("/api/ai/status")])
       .then(([s, a]) => {
         setSettings(s);
         setAi(a);
+        void loadTranslate();
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load AI settings"));
   }, []);
@@ -29,6 +56,7 @@ export function AiSettingsSection() {
     try {
       setSettings(await api<AiSettings>("/api/ai/settings", { method: "PATCH", body: JSON.stringify(patch) }));
       setSaved(true);
+      if (patch.lang) void loadTranslate();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     }
@@ -63,9 +91,21 @@ export function AiSettingsSection() {
             {settings.lang === "kk" ? (
               <p className="muted" style={{ margin: 0 }}>
                 Kazakh: the teacher compares Korean grammar with Kazakh where they match. AI is a bit less
-                reliable in Kazakh than in Russian, so switch back if translations look odd. Built-in theme
-                packs keep their Russian meanings.
+                reliable in Kazakh than in Russian, so switch back if translations look odd.
               </p>
+            ) : null}
+            {tr && tr.remaining > 0 ? (
+              <div className="card notice" style={{ margin: 0 }}>
+                <p style={{ marginTop: 0 }}>
+                  {translating
+                    ? `Translating… ${Math.max(0, trTotal - tr.remaining)}/${trTotal} done. Keep this page open.`
+                    : `${tr.remaining} card${tr.remaining === 1 ? " has" : "s have"} a meaning that is not in ${tr.langName}.`}
+                </p>
+                <button type="button" className="wide" disabled={translating || (ai !== null && !ai.configured)} onClick={() => void translateAll()}>
+                  {translating ? "Working…" : `Translate my cards to ${tr.langName}`}
+                </button>
+                <p className="muted" style={{ marginBottom: 0 }}>This replaces the old meanings. It cannot be undone, except by translating again into another language.</p>
+              </div>
             ) : null}
             <label>
               Target words per daily text

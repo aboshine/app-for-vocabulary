@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   try {
     const words = validatePack({ words: data.words });
     const settings = await getSettings();
-    return NextResponse.json(await addCustomWords({ topic: String(data.topic ?? ""), words, level: settings.level }));
+    return NextResponse.json(await addCustomWords({ topic: String(data.topic ?? ""), words, level: settings.level, lang: settings.lang }));
   } catch (error) {
     return errorResponse(error);
   }
