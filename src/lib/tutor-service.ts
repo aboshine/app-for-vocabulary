@@ -56,9 +56,11 @@ export async function wordHelp(vocabularyId: string) {
 }
 
 /** The teacher's reply as a stream of text pieces. Validation errors are thrown before the first piece. */
-export async function chatStream(messages: ChatMessage[], info: { model?: string } = {}): Promise<AsyncGenerator<string>> {
+export async function chatStream(messages: ChatMessage[], info: { model?: string; prepMs?: number } = {}): Promise<AsyncGenerator<string>> {
   if (!messages.length || messages[messages.length - 1].role !== "user") throw new Error("Write a question first.");
+  const started = Date.now();
   const [settings, weak] = await Promise.all([getAiSettings(), weakWords(15)]);
+  info.prepMs = Date.now() - started; // time spent in the database before the AI is even asked
   const { system, prompt } = chatPrompt({ messages, level: settings.level, lang: settings.lang, weakWords: weak.map((w) => w.korean) });
   return streamText({ system, prompt, tier: "smart", temperature: 0.6, maxOutputTokens: 2048 }, info);
 }

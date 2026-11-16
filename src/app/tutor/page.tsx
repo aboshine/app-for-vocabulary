@@ -138,7 +138,7 @@ function Ask() {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (!reply) setLastInfo(`${response.headers.get("X-AI-Model") || "AI"} · first words after ${((Date.now() - started) / 1000).toFixed(1)} s`);
+        if (!reply) setLastInfo(`${response.headers.get("X-AI-Model") || "AI"} · first words after ${((Date.now() - started) / 1000).toFixed(1)} s (database ${(Number(response.headers.get("X-Prep-Ms") || 0) / 1000).toFixed(1)} s)`);
         reply += decoder.decode(value, { stream: true });
         setMessagesState([...next, { role: "teacher", content: reply }]);
       }
