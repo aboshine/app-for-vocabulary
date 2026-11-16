@@ -116,8 +116,8 @@ describe("streaming answers", () => {
 
   it("uses only main and light unless a middle model is configured", () => {
     vi.unstubAllEnvs();
-    expect(modelsFor("gemini", "smart", {})).toEqual(["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
-    expect(modelsFor("gemini", "fast", {})).toEqual(["gemini-3.5-flash-lite", "gemini-3.8-flash"]);
+    expect(modelsFor("gemini", "smart", {} as NodeJS.ProcessEnv)).toEqual(["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+    expect(modelsFor("gemini", "fast", {} as NodeJS.ProcessEnv)).toEqual(["gemini-3.5-flash-lite", "gemini-3.8-flash"]);
   });
 
   it("brings a rested model back, and still tries everything when all are resting", () => {
