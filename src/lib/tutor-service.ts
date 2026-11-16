@@ -62,7 +62,9 @@ export async function chatStream(messages: ChatMessage[], info: { model?: string
   const [settings, weak] = await Promise.all([getAiSettings(), weakWords(15)]);
   info.prepMs = Date.now() - started; // time spent in the database before the AI is even asked
   const { system, prompt } = chatPrompt({ messages, level: settings.level, lang: settings.lang, weakWords: weak.map((w) => w.korean) });
-  return streamText({ system, prompt, tier: "smart", temperature: 0.6, maxOutputTokens: 2048 }, info);
+  // Chat must feel instant, so the light model goes first (measured: first words in under a second,
+  // while the main model was overloaded or slow to start). Lessons, texts and corrections keep the main model first.
+  return streamText({ system, prompt, tier: "fast", temperature: 0.6, maxOutputTokens: 2048 }, info);
 }
 
 /* ------------------------------------------------------------------ grammar lessons */
