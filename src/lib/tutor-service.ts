@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { findSyllabusItem, GRAMMAR_SYLLABUS, nextSyllabusItem } from "@/data/grammar-syllabus";
-import { generateJson, generateText } from "./ai/client";
+import { generateJson, streamText } from "./ai/client";
 import {
   chatPrompt,
   explainPrompt,
@@ -55,12 +55,12 @@ export async function wordHelp(vocabularyId: string) {
   });
 }
 
-export async function chat(messages: ChatMessage[]) {
+/** The teacher's reply as a stream of text pieces. Validation errors are thrown before the first piece. */
+export async function chatStream(messages: ChatMessage[]): Promise<AsyncGenerator<string>> {
   if (!messages.length || messages[messages.length - 1].role !== "user") throw new Error("Write a question first.");
   const [settings, weak] = await Promise.all([getAiSettings(), weakWords(15)]);
   const { system, prompt } = chatPrompt({ messages, level: settings.level, lang: settings.lang, weakWords: weak.map((w) => w.korean) });
-  const { data } = await generateText({ system, prompt, tier: "smart", temperature: 0.6, maxOutputTokens: 2048 });
-  return data;
+  return streamText({ system, prompt, tier: "smart", temperature: 0.6, maxOutputTokens: 2048 });
 }
 
 /* ------------------------------------------------------------------ grammar lessons */

@@ -141,40 +141,131 @@ export async function generateText(request: AiRequest): Promise<AiResult<string>
   throw lastError instanceof Error ? lastError : new AiError("The AI did not answer. Try again.");
 }
 
-async function callGemini(model: string, request: AiRequest): Promise<string> {
-  const response = await fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_API_KEY ?? "",
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: request.system }] },
-        contents: [{ role: "user", parts: [{ text: request.prompt }] }],
-        generationConfig: {
-          ...(request.json === false ? {} : { responseMimeType: "application/json" }),
-          temperature: request.temperature ?? 0.7,
-          maxOutputTokens: request.maxOutputTokens ?? 8192,
-        },
-      }),
+/**
+ * Gemini "thinking" makes answers much slower and these tasks do not need it, so we ask
+ * for the lowest setting. Gemini 2.5 uses a token budget, newer models a level; a model
+ * that rejects the setting is simply called again without it.
+ */
+export function geminiThinkingConfig(model: string): Record<string, unknown> | null {
+  if (/gemini-2\.5-pro/.test(model)) return null; // cannot be turned down this way
+  if (/gemini-2\.5/.test(model)) return { thinkingBudget: 0 };
+  if (/gemini-([3-9]|\d{2,})/.test(model)) return { thinkingLevel: "low" };
+  return null;
+}
+
+/** Models that refused the thinking setting once; skip it for them from then on (per server instance). */
+const noThinkingConfig = new Set<string>();
+
+function geminiBody(model: string, request: AiRequest, withThinking: boolean) {
+  const thinking = withThinking && !noThinkingConfig.has(model) ? geminiThinkingConfig(model) : null;
+  return JSON.stringify({
+    systemInstruction: { parts: [{ text: request.system }] },
+    contents: [{ role: "user", parts: [{ text: request.prompt }] }],
+    generationConfig: {
+      ...(request.json === false ? {} : { responseMimeType: "application/json" }),
+      temperature: request.temperature ?? 0.7,
+      maxOutputTokens: request.maxOutputTokens ?? 8192,
+      ...(thinking ? { thinkingConfig: thinking } : {}),
     },
-  );
-  const body = (await response.json().catch(() => ({}))) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>;
-    error?: { message?: string };
-  };
-  if (!response.ok) throw httpError("Gemini", response.status, body.error?.message);
-  const parts = body.candidates?.[0]?.content?.parts ?? [];
-  const text = parts
+  });
+}
+
+async function geminiFetch(model: string, request: AiRequest, method: "generateContent" | "streamGenerateContent"): Promise<Response> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${method}${method === "streamGenerateContent" ? "?alt=sse" : ""}`;
+  const init = (withThinking: boolean): RequestInit => ({
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY ?? "" },
+    body: geminiBody(model, request, withThinking),
+  });
+  let response = await fetchWithTimeout(url, init(true));
+  if (response.status === 400 && !noThinkingConfig.has(model) && geminiThinkingConfig(model)) {
+    // most likely this model does not accept the thinking setting: remember that and retry plainly
+    noThinkingConfig.add(model);
+    response = await fetchWithTimeout(url, init(false));
+  }
+  return response;
+}
+
+type GeminiChunk = {
+  candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>;
+  error?: { message?: string };
+};
+
+function chunkText(body: GeminiChunk): string {
+  return (body.candidates?.[0]?.content?.parts ?? [])
     .filter((part) => !part.thought)
     .map((part) => part.text ?? "")
     .join("");
+}
+
+async function callGemini(model: string, request: AiRequest): Promise<string> {
+  const response = await geminiFetch(model, request, "generateContent");
+  const body = (await response.json().catch(() => ({}))) as GeminiChunk;
+  if (!response.ok) throw httpError("Gemini", response.status, body.error?.message);
+  const text = chunkText(body);
   if (!text.trim()) {
     throw new AiError(`Gemini returned an empty answer (${body.candidates?.[0]?.finishReason ?? "unknown"}).`, 502, true);
   }
   return text;
+}
+
+/**
+ * Free-text answer delivered piece by piece, so the reader sees the first words after
+ * about a second instead of waiting for the whole answer. Gemini streams for real; other
+ * providers yield the full answer as one piece. Falls back to the second model only if
+ * nothing has been sent yet.
+ */
+export async function* streamText(request: AiRequest): AsyncGenerator<string> {
+  const provider = activeProvider();
+  if (!provider) {
+    throw new AiError("AI is not configured. Add GEMINI_API_KEY to the environment (free key: https://aistudio.google.com/apikey).", 503);
+  }
+  const req = { ...request, json: false };
+  if (provider !== "gemini") {
+    yield (await generateText(req)).data;
+    return;
+  }
+  let lastError: unknown = null;
+  for (const model of modelsFor(provider, request.tier ?? "fast")) {
+    let sent = false;
+    try {
+      const response = await geminiFetch(model, req, "streamGenerateContent");
+      if (!response.ok || !response.body) {
+        const body = (await response.json().catch(() => ({}))) as GeminiChunk;
+        throw httpError("Gemini", response.status, body.error?.message);
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          let text = "";
+          try {
+            text = chunkText(JSON.parse(line.slice(5)) as GeminiChunk);
+          } catch {
+            continue; // partial or keep-alive line
+          }
+          if (text) {
+            sent = true;
+            yield text;
+          }
+        }
+      }
+      if (sent) return;
+      lastError = new AiError("Gemini returned an empty answer.", 502, true);
+    } catch (error) {
+      if (sent) throw error; // half an answer is already on screen: do not start over with another model
+      lastError = error;
+      if (!(error instanceof AiError) || !error.retryable) throw error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new AiError("The AI did not answer. Try again.");
 }
 
 async function callAnthropic(model: string, request: AiRequest): Promise<string> {

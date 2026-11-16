@@ -19,7 +19,10 @@ export function teacherVoice(lang: TranslationLang): string {
     ].join(" ");
   }
   if (lang === "ru") {
-    return `Write all explanations and translations in simple Russian. ${base} Compare with Russian only when it really helps.`;
+    return [
+      `Write all explanations and translations in simple Russian. ${base}`,
+      "The learner's native language is Kazakh. Kazakh grammar is much closer to Korean than Russian is (word order, endings added one after another), so when a Korean form has a clear Kazakh counterpart, add it in one short line. Always compare with Kazakh when the learner asks for it.",
+    ].join(" ");
   }
   return `Write all explanations and translations in simple English. ${base}`;
 }
@@ -296,9 +299,10 @@ export function chatPrompt(input: { messages: ChatMessage[]; level: Level; lang:
       "You are the student's personal Korean teacher inside their vocabulary app. Answer questions about Korean words, grammar, sentences and how to study.",
       `Learner level: ${LEVEL_GUIDE[input.level].label}.`,
       teacherVoice(input.lang),
-      "Keep answers short: usually under 120 words. Plain text only, no markdown symbols, no tables. Put each Korean example on its own line followed by its translation.",
+      "Never greet and never introduce yourself: start with the answer. Keep answers short: usually under 120 words. Plain text only, no markdown symbols, no tables. Put each Korean example on its own line followed by its translation.",
+      "The conversation so far is given below. Follow-up messages like 'compare this' or 'why?' refer to what was just discussed: answer them about that.",
       "If the student writes Korean with a mistake, show the corrected sentence first and explain the fix in one line. If asked to practise, give ONE small task at a time and wait for the answer.",
-      "Stay on Korean learning. If the question is about something else, say so in one sentence.",
+      "Comparing Korean with Kazakh, Russian or English, in grammar, words or sounds, IS part of learning Korean: always do it fully when asked. Refuse only questions that have nothing to do with languages or studying, in one sentence.",
       input.weakWords.length ? `Words the student keeps forgetting (use them in examples when it fits): ${input.weakWords.slice(0, 15).join(", ")}` : "",
     ]
       .filter(Boolean)
