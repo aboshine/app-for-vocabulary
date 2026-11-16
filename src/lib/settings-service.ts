@@ -8,13 +8,17 @@ import {
   type LearningSettings,
 } from "./settings";
 
+/** Words whose very first review happened today (uses the createdAt / vocabularyId indexes, no full scan). */
 export async function countNewIntroducedToday(now = new Date()) {
   const dayStart = startOfLocalDay(now);
-  const groups = await prisma.review.groupBy({
-    by: ["vocabularyId"],
-    _min: { createdAt: true },
-  });
-  return groups.filter((group) => group._min.createdAt && group._min.createdAt >= dayStart).length;
+  const rows = await prisma.$queryRaw<Array<{ n: number }>>`
+    SELECT COUNT(*)::int AS n FROM (
+      SELECT DISTINCT "vocabularyId" FROM "Review" WHERE "createdAt" >= ${dayStart}
+    ) today
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "Review" r WHERE r."vocabularyId" = today."vocabularyId" AND r."createdAt" < ${dayStart}
+    )`;
+  return rows[0]?.n ?? 0;
 }
 
 export async function getSettings(): Promise<LearningSettings> {

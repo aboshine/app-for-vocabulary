@@ -11,6 +11,8 @@ export function mockResponse(request: AiRequest): string {
   if (task === "explain") return JSON.stringify(mockExplain(request.prompt));
   if (task === "lesson") return JSON.stringify(mockLesson(request.prompt));
   if (task === "wordhelp") return JSON.stringify(mockWordHelp(request.prompt));
+  if (task === "writing") return JSON.stringify(mockWriting(request.prompt));
+  if (task === "translate") return JSON.stringify(mockTranslate(request.prompt));
   if (task === "chat") return "Тестовый ответ учителя (AI_PROVIDER=mock).\n저는 학생이에요.\nЯ студент.";
   if (task === "weeklynote") return "Тестовый комментарий учителя (AI_PROVIDER=mock).";
   return JSON.stringify(mockReading(request.prompt));
@@ -162,4 +164,29 @@ function mockWordHelp(prompt: string) {
     confusedWith: [],
     examples: [{ ko: `저는 ${korean}을/를 좋아해요.`, tr: `Мне нравится ${korean}.` }],
   };
+}
+
+function mockWriting(prompt: string) {
+  const text = prompt.split('"""')[1]?.trim() ?? "";
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return {
+    sentences: sentences.map((original, i) => ({
+      original,
+      corrected: i === 0 ? original : `${original} (исправлено)`,
+      ok: i === 0,
+      explain: i === 0 ? "" : "Тестовое объяснение ошибки.",
+    })),
+    words: targetsFromList(prompt).map((korean) => ({ korean, used: text.includes(korean.replace(/다$/, "")), correct: true })),
+    natural: "",
+    overall: "Тестовый отзыв (AI_PROVIDER=mock).",
+  };
+}
+
+function targetsFromList(prompt: string): string[] {
+  return [...prompt.matchAll(/^- (\S[^(]*?) \(/gm)].map((m) => m[1].trim());
+}
+
+function mockTranslate(prompt: string) {
+  const rows = [...prompt.matchAll(/^(\d+)\. (.+?) \| old meaning: (.+?) \| example: (.*)$/gm)];
+  return { cards: rows.map((m) => ({ i: Number(m[1]), meaning: `[kk] ${m[3]}`, exampleTranslation: m[4] === "-" ? "" : `[kk] ${m[4]}` })) };
 }

@@ -8,7 +8,9 @@ import { activeDaySet, activeDaysInLastWeek, getDailyMinutes, weakWords, weeklyD
 import { SETTINGS_ID } from "./settings";
 import { getSettings } from "./settings-service";
 import { submitReview } from "./vocab-service";
+import { submitGrammarReview } from "./grammar-service";
 import {
+  buildGrammarQuestions,
   buildWeeklyQuestions,
   gradeWeekly,
   pickWeeklyWords,
@@ -18,6 +20,8 @@ import {
   type WeeklyQuestion,
   type WeeklySummary,
 } from "./weekly";
+
+type FinishedLessonExercises = Array<{ q: string; options: string[]; answer: number }>;
 
 const OPEN_CHECK_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
@@ -82,7 +86,23 @@ export async function startWeekly(now = new Date()) {
     throw new Error(`Study at least ${WEEKLY_MIN_STUDIED} words first, then take the check.`);
   }
   const minutes = await getDailyMinutes();
-  const questions = buildWeeklyQuestions(pickWeeklyWords(deck, questionCount(minutes), now), deck);
+  // Finished grammar lessons add a few grammar questions (lessons may exist in several languages: newest first).
+  const lessons = await prisma.grammarLesson.findMany({
+    where: { completedAt: { not: null }, grammarId: { not: "" } },
+    orderBy: { completedAt: "desc" },
+    take: 30,
+    select: { grammarId: true, payload: true },
+  });
+  const grammar = buildGrammarQuestions(
+    lessons.map((l) => {
+      try {
+        return { grammarId: l.grammarId, exercises: (JSON.parse(l.payload) as { exercises?: FinishedLessonExercises }).exercises ?? [] };
+      } catch {
+        return { grammarId: l.grammarId, exercises: [] };
+      }
+    }),
+  );
+  const questions = [...buildWeeklyQuestions(pickWeeklyWords(deck, questionCount(minutes) - grammar.length, now), deck), ...grammar];
   const created = await prisma.weeklyCheck.create({ data: { questions: JSON.stringify(questions), total: questions.length } });
   return { id: created.id, questions: publicQuestions(questions) };
 }
@@ -102,7 +122,8 @@ export async function submitWeekly(id: string, answers: string[], now = new Date
   for (const row of rows) {
     if (row.correct) continue;
     try {
-      await submitReview({ vocabularyId: row.vocabularyId, rating: "again", direction: "weekly", now });
+      if (row.grammarId) await submitGrammarReview({ grammarId: row.grammarId, rating: "again", now });
+      else await submitReview({ vocabularyId: row.vocabularyId, rating: "again", direction: "weekly", now });
     } catch {
       // the word was deleted meanwhile
     }
@@ -134,7 +155,7 @@ export async function submitWeekly(id: string, answers: string[], now = new Date
       score,
       total: rows.length,
       activeDays,
-      missed: rows.filter((r) => !r.correct).map((r) => (r.kind === "ko-choice" ? { korean: r.prompt, meaning: r.answer } : { korean: r.answer, meaning: r.prompt })),
+      missed: rows.filter((r) => !r.correct && r.kind !== "grammar").map((r) => (r.kind === "ko-choice" ? { korean: r.prompt, meaning: r.answer } : { korean: r.answer, meaning: r.prompt })),
       planMessage: adjustment.message,
     });
     comment = (await generateText({ system, prompt, tier: "fast", temperature: 0.6, maxOutputTokens: 1024 })).data.slice(0, 1200);

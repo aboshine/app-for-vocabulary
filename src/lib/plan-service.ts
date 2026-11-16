@@ -1,5 +1,6 @@
 import { aiStatus } from "./ai/client";
-import { addDays, dayKey, startOfLocalDay, weekdayIndex, weekStart } from "./day";
+import { accuracyFromCounts } from "./dashboard";
+import { addDays, appTimeZone, dayKey, startOfLocalDay, weekdayIndex, weekStart } from "./day";
 import { prisma } from "./db";
 import {
   buildDailySteps,
@@ -17,19 +18,24 @@ import { DEFAULT_SETTINGS, SETTINGS_ID, settingsToRow } from "./settings";
 import { countNewIntroducedToday, getSettings } from "./settings-service";
 import { weeklyIsDue, type WeeklySummary } from "./weekly";
 
-/** Days (YYYY-MM-DD, app time zone) on which enough cards were answered to count as a study day. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Days (YYYY-MM-DD, app time zone) on which enough cards were answered to count as a study day.
+ * Counted inside the database: one small grouped query instead of loading every review row.
+ */
 export async function activeDaySet(now = new Date(), daysBack = 370): Promise<Set<string>> {
   const since = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000);
-  const [vocab, grammar] = await Promise.all([
-    prisma.review.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
-    prisma.grammarReview.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }),
-  ]);
-  const counts = new Map<string, number>();
-  for (const row of [...vocab, ...grammar]) {
-    const key = dayKey(row.createdAt);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return new Set([...counts.entries()].filter(([, n]) => n >= STREAK_MIN_REVIEWS).map(([key]) => key));
+  const tz = appTimeZone();
+  const rows = await prisma.$queryRaw<Array<{ day: string; n: number }>>`
+    SELECT day, SUM(n)::int AS n FROM (
+      SELECT to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day, COUNT(*) AS n
+      FROM "Review" WHERE "createdAt" >= ${since} GROUP BY 1
+      UNION ALL
+      SELECT to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS day, COUNT(*) AS n
+      FROM "GrammarReview" WHERE "createdAt" >= ${since} GROUP BY 1
+    ) t GROUP BY day`;
+  return new Set(rows.filter((row) => row.n >= STREAK_MIN_REVIEWS).map((row) => row.day));
 }
 
 export function activeDaysInLastWeek(days: Set<string>, today: string): number {
@@ -101,7 +107,7 @@ export async function getPlan(now = new Date()) {
   // Monday 00:00 local time (the +12h keeps us safely inside that day before snapping to its start).
   const weekStartDate = startOfLocalDay(new Date(dayStart.getTime() - weekdayIndex(today) * 24 * 60 * 60 * 1000 + 12 * 60 * 60 * 1000));
 
-  const [settings, minutes, days, dueNow, reviewedVocab, reviewedGrammar, newWaiting, newIntroducedToday, texts, grammarThisWeek, weekly, weak, totals] =
+  const [settings, minutes, days, dueNow, reviewedVocab, reviewedGrammar, newWaiting, newIntroducedToday, texts, grammarThisWeek, weekly, weak, totals, ratings7, ratings30] =
     await Promise.all([
       getSettings(),
       getDailyMinutes(),
@@ -116,7 +122,14 @@ export async function getPlan(now = new Date()) {
       weeklyDueState(now),
       weakWords(),
       prisma.vocabulary.groupBy({ by: ["learningState"], _count: { _all: true } }),
+      prisma.review.groupBy({ by: ["rating"], where: { createdAt: { gte: new Date(now.getTime() - 7 * DAY_MS) } }, _count: { _all: true } }),
+      prisma.review.groupBy({ by: ["rating"], where: { createdAt: { gte: new Date(now.getTime() - 30 * DAY_MS) } }, _count: { _all: true } }),
     ]);
+  const accuracy = (groups: Array<{ rating: string; _count: { _all: number } }>) => {
+    const total = groups.reduce((sum, g) => sum + g._count._all, 0);
+    const success = groups.filter((g) => g.rating === "good" || g.rating === "easy").reduce((sum, g) => sum + g._count._all, 0);
+    return accuracyFromCounts(success, total);
+  };
 
   const preset = PLAN_PRESETS[minutes];
   const steps = buildDailySteps({
@@ -133,6 +146,7 @@ export async function getPlan(now = new Date()) {
     grammarPerWeek: preset.grammarPerWeek,
     weeklyDue: weekly.due,
     weakCount: weak.length,
+    weekday: weekdayIndex(today),
   });
   const count = (state: string) => totals.find((t) => t.learningState === state)?._count._all ?? 0;
   let lastWeekly: { completedAt: string; score: number; total: number; message: string; delta: number } | null = null;
@@ -172,6 +186,7 @@ export async function getPlan(now = new Date()) {
     weakCount: weak.length,
     weeklyDue: weekly.due,
     lastWeekly,
+    retention: { days7: accuracy(ratings7), days30: accuracy(ratings30) },
     deck: { total: count("new") + count("learning") + count("learned"), new: count("new"), learning: count("learning"), learned: count("learned") },
   };
 }

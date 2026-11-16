@@ -94,9 +94,22 @@ export interface PlanInput {
   grammarPerWeek: number;
   weeklyDue: boolean;
   weakCount: number;
+  /** 0 = Monday … 6 = Sunday; decides which extra practice is suggested today */
+  weekday?: number;
 }
 
-export type StepKey = "weekly" | "review" | "new" | "reading" | "weak" | "grammar";
+export type StepKey = "weekly" | "review" | "new" | "reading" | "weak" | "grammar" | "writing" | "listening";
+
+/**
+ * One extra practice a day, so the plan stays short: grammar, writing and listening take turns.
+ * Grammar gives way to writing once this week's lessons are done.
+ */
+export function extraOfTheDay(weekday: number, grammarLeft: boolean): "grammar" | "writing" | "listening" {
+  const slot = ((weekday % 3) + 3) % 3;
+  if (slot === 2) return "listening";
+  if (slot === 1) return "writing";
+  return grammarLeft ? "grammar" : "writing";
+}
 
 export interface PlanStep {
   key: StepKey;
@@ -175,15 +188,39 @@ export function buildDailySteps(input: PlanInput): PlanStep[] {
       minutes: Math.max(1, Math.ceil(input.weakCount / 3)),
     });
   }
-  steps.push({
-    key: "grammar",
-    title: "Grammar lesson",
-    detail: `${Math.min(input.grammarThisWeek, input.grammarPerWeek)}/${input.grammarPerWeek} this week`,
-    href: "/tutor?tab=lessons",
-    done: input.grammarThisWeek >= input.grammarPerWeek,
-    optional: true,
-    minutes: 6,
-  });
+  const grammarLeft = input.grammarThisWeek < input.grammarPerWeek;
+  const extra = extraOfTheDay(input.weekday ?? 0, grammarLeft);
+  if (extra === "grammar") {
+    steps.push({
+      key: "grammar",
+      title: "Grammar lesson",
+      detail: `${Math.min(input.grammarThisWeek, input.grammarPerWeek)}/${input.grammarPerWeek} this week`,
+      href: "/tutor?tab=lessons",
+      done: false,
+      optional: true,
+      minutes: 6,
+    });
+  } else if (extra === "writing") {
+    steps.push({
+      key: "writing",
+      title: "Write 2–3 sentences",
+      detail: input.aiConfigured ? "Your teacher corrects them" : "Needs an AI key (see Settings)",
+      href: "/tutor?tab=write",
+      done: false,
+      optional: true,
+      minutes: 4,
+    });
+  } else {
+    steps.push({
+      key: "listening",
+      title: "Listening round",
+      detail: "Hear 10 words, type what you hear",
+      href: "/listen",
+      done: false,
+      optional: true,
+      minutes: 3,
+    });
+  }
   return steps;
 }
 

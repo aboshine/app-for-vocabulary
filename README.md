@@ -2,7 +2,7 @@
 
 Private flashcards for Korean vocabulary and grammar with spaced repetition, plus themed TOPIK word packs and a daily AI reading text at your level.
 
-This app is a Next.js server that talks to PostgreSQL through Prisma. It is designed to run locally and on Vercel. There is no authentication yet.
+This app is a Next.js server that talks to PostgreSQL through Prisma. It is designed to run locally and on Vercel. Access can be locked with one password (`APP_PASSWORD`).
 
 ## Required environment variables
 
@@ -58,6 +58,15 @@ Open http://localhost:3000
 5. **Today** shows the daily plan (review → new words → text), your streak and the words that will not stick. A card rated *Again* comes back later in the same session.
 6. **Weekly check** (`/weekly`): once a week, a short test. Missed words return to review the same day and the result moves "new words a day" up or down.
 7. **Tutor**: ask the AI teacher anything, paste Korean text for a word-by-word breakdown, or take the next grammar lesson (it becomes a grammar card when finished). In **Read**, 🔍 breaks down a single sentence.
+
+8. **Tutor → Write**: write 2–3 sentences with the suggested words; the teacher corrects them. **Listen** (`/listen`): hear a word, type it. The daily plan suggests one extra practice a day (grammar, writing or listening in turn).
+9. **Settings → Translate my cards**: re-translates card meanings into the current explanation language.
+
+Add to Home Screen in the phone browser to open the site like an app. The tutor chat is kept on the device; sentence breakdowns and word help are cached in the database, so repeating a question costs no AI call.
+
+### Password (recommended)
+
+Set `APP_PASSWORD` in the environment and redeploy. Every page and API route then needs a login (cookie lasts about six months). `/api/cron/*` stays reachable for Vercel Cron and is protected by `CRON_SECRET`.
 
 ### Telegram reminders (optional)
 

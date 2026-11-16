@@ -6,11 +6,6 @@ import { Status } from "@/components/Status";
 import { api } from "@/lib/api";
 import type { PlanView } from "@/lib/plan-service";
 
-interface StatsData {
-  retention: { days7: number | null; days30: number | null };
-  categories: Array<{ id: string | null; name: string; total: number; learned: number }>;
-}
-
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function percent(value: number | null): string {
@@ -19,16 +14,12 @@ function percent(value: number | null): string {
 
 export default function TodayPage() {
   const [plan, setPlan] = useState<PlanView | null>(null);
-  const [stats, setStats] = useState<StatsData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api<PlanView>("/api/plan")
       .then(setPlan)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
-    api<StatsData>("/api/stats")
-      .then(setStats)
-      .catch(() => undefined); // extra numbers only
   }, []);
 
   const empty = plan && plan.deck.total === 0;
@@ -145,27 +136,16 @@ export default function TodayPage() {
               <Stat label="Learning" value={String(plan.deck.learning)} />
               <Stat label="New, waiting" value={String(plan.deck.new)} />
               <Stat label="New words a day" value={String(plan.plan.newPerDay)} />
-              <Stat label="7-day accuracy" value={percent(stats?.retention.days7 ?? null)} />
-              <Stat label="30-day accuracy" value={percent(stats?.retention.days30 ?? null)} />
+              <Stat label="7-day accuracy" value={percent(plan.retention.days7)} />
+              <Stat label="30-day accuracy" value={percent(plan.retention.days30)} />
             </section>
-            <div className="row" style={{ marginBottom: 16 }}>
-              <Link className="link" href="/tutor">Ask the teacher →</Link>
-              <Link className="link" href="/weekly">Weekly checks →</Link>
-            </div>
-
-            {stats && stats.categories.length > 0 ? (
-              <>
-                <h2 className="section-title">Categories</h2>
-                <div className="compact card">
-                  {stats.categories.map((category) => (
-                    <div className="compact-row" key={category.id ?? "none"}>
-                      <strong>{category.name}</strong>
-                      <span className="muted">{category.learned}/{category.total} learned</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
+            <h2 className="section-title">More practice</h2>
+            <section className="grid">
+              <Link className="card" href="/tutor?tab=write"><strong>✍️ Write</strong><p className="muted" style={{ margin: 0 }}>Teacher corrects you</p></Link>
+              <Link className="card" href="/listen"><strong>🎧 Listen</strong><p className="muted" style={{ margin: 0 }}>Type what you hear</p></Link>
+              <Link className="card" href="/tutor"><strong>💬 Ask</strong><p className="muted" style={{ margin: 0 }}>Any question</p></Link>
+              <Link className="card" href="/weekly"><strong>📝 Weekly check</strong><p className="muted" style={{ margin: 0 }}>{plan.weeklyDue ? "Ready now" : "Results"}</p></Link>
+            </section>
           </>
         ) : null}
       </Status>

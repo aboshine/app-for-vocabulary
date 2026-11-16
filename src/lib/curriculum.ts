@@ -96,6 +96,7 @@ export async function addThemePack(themeKey: string, count?: number) {
         exampleTranslation,
         categoryId,
         source: "curriculum",
+        meaningLang: "ru", // the built-in list is written in Russian
         level: `TOPIK${theme.level}`,
         tags: `topik${theme.level},${theme.key}`,
       })),
@@ -106,7 +107,7 @@ export async function addThemePack(themeKey: string, count?: number) {
 }
 
 /** Save AI-suggested words (already reviewed by the user) into a category named after the topic. */
-export async function addCustomWords(input: { topic: string; words: PackWord[]; level: number }) {
+export async function addCustomWords(input: { topic: string; words: PackWord[]; level: number; lang?: string }) {
   const deck = await deckMap();
   const fresh = input.words.filter((word) => !deck.has(normalizeKorean(word.korean)));
   const categoryName = input.topic.trim().slice(0, 80) || "AI";
@@ -122,6 +123,7 @@ export async function addCustomWords(input: { topic: string; words: PackWord[]; 
         notes: word.notes,
         categoryId,
         source: "ai",
+        meaningLang: input.lang ?? "",
         level: `TOPIK${input.level}`,
       })),
     });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AccessSection } from "@/components/AccessSection";
 import { AiSettingsSection } from "@/components/AiSettingsSection";
 import { PlanSettingsSection } from "@/components/PlanSettingsSection";
 import { Status } from "@/components/Status";
@@ -31,17 +32,27 @@ export default function SettingsPage() {
   const [targetPreset, setTargetPreset] = useState("20");
 
   useEffect(() => {
-    Promise.all([
-      api<LearningSettings>("/api/settings"),
-      api<Category[]>("/api/categories"),
-    ])
-      .then(([nextSettings, nextCategories]) => {
-        setSettings(nextSettings);
-        setCategories(nextCategories);
-        setNewPreset(presetOrCustom(nextSettings.dailyNewWordLimit, NEW_WORD_PRESETS));
-        setTargetPreset(presetOrCustom(nextSettings.dailyReviewTarget, REVIEW_TARGET_PRESETS));
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
+    function load() {
+      Promise.all([
+        api<LearningSettings>("/api/settings"),
+        api<Category[]>("/api/categories"),
+      ])
+        .then(([nextSettings, nextCategories]) => {
+          setSettings(nextSettings);
+          setCategories(nextCategories);
+          setNewPreset(presetOrCustom(nextSettings.dailyNewWordLimit, NEW_WORD_PRESETS));
+          setTargetPreset(presetOrCustom(nextSettings.dailyReviewTarget, REVIEW_TARGET_PRESETS));
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"));
+    }
+    load();
+    // The weekly check can change "new words a day" while this page sits open in a tab.
+    // Reload when the page is shown again, so saving here never writes back an old number.
+    function onVisible() {
+      if (document.visibilityState === "visible") load();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   const save = useCallback(async (next: LearningSettings) => {
@@ -220,6 +231,7 @@ export default function SettingsPage() {
             <p className="muted">Defaults: {DEFAULT_SETTINGS.dailyNewWordLimit} new / {DEFAULT_SETTINGS.sessionLimit} cards / Mixed.</p>
             <PlanSettingsSection />
             <AiSettingsSection />
+            <AccessSection />
           </div>
         ) : null}
       </Status>

@@ -326,3 +326,96 @@ Plan decision for next week (already made, explain it kindly): ${input.planMessa
 Write 3-4 short sentences of plain text: an honest reaction to the result, one concrete tip for the missed words (name one or two of them), and what to do next week. No markdown, no greeting.`,
   };
 }
+
+/* ------------------------------------------------------------------ writing practice */
+
+export interface WritingFeedback {
+  sentences: Array<{ original: string; corrected: string; ok: boolean; explain: string }>;
+  words: Array<{ korean: string; used: boolean; correct: boolean }>;
+  natural: string;
+  overall: string;
+}
+
+export const WRITING_MAX_CHARS = 500;
+
+export function writingPrompt(input: { text: string; words: Array<{ korean: string; meaning: string }>; grammar: string; level: Level; lang: TranslationLang }) {
+  const langName = LANG_NAMES[input.lang];
+  return {
+    system: [
+      "TASK: writing",
+      "You are a Korean teacher correcting a student's own sentences. Be exact about mistakes and kind in tone.",
+      `Learner level: ${LEVEL_GUIDE[input.level].label}.`,
+      teacherVoice(input.lang),
+    ].join("\n"),
+    prompt: `The student was asked to write a few Korean sentences using these words:
+${input.words.map((w) => `- ${w.korean} (${w.meaning})`).join("\n") || "- (free writing)"}
+${input.grammar ? `Bonus: try the grammar ${input.grammar}.\n` : ""}
+The student wrote:
+"""
+${input.text.slice(0, WRITING_MAX_CHARS)}
+"""
+
+Return JSON:
+{
+  "sentences": [ { "original": "one sentence exactly as the student wrote it", "corrected": "the corrected sentence (same as original if it is fine)", "ok": true, "explain": "if wrong: what was wrong and the rule, 1-2 short ${langName} sentences. If fine: empty string." } ],
+  "words": [ { "korean": "target word exactly as in the list", "used": true, "correct": true } ],
+  "natural": "how a Korean person would say the whole thing, only if it differs clearly from the corrected sentences; else empty string",
+  "overall": "one encouraging but honest ${langName} sentence, then one concrete thing to practise next"
+}
+
+Rules: "ok" is true only if the sentence has no grammar, spelling or particle mistakes (small style points do not make it wrong). "words" has one entry per target word: "used" = it appears in any form, "correct" = it is used with the right meaning and form. Do not rewrite the student's idea, fix only what is wrong. If the text is not Korean, return an empty "sentences" list and say so in "overall".`,
+  };
+}
+
+export function validateWriting(value: unknown): WritingFeedback {
+  const data = asObject(value, "answer");
+  const sentences = (Array.isArray(data.sentences) ? data.sentences : [])
+    .map((raw) => {
+      const s = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      const original = str(s.original, 400);
+      const corrected = str(s.corrected, 400) || original;
+      return { original, corrected, ok: s.ok === true, explain: str(s.explain, 600) };
+    })
+    .filter((s) => s.original)
+    .slice(0, 8);
+  const words = (Array.isArray(data.words) ? data.words : [])
+    .map((raw) => {
+      const w = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      return { korean: str(w.korean, 80), used: w.used === true, correct: w.used === true && w.correct === true };
+    })
+    .filter((w) => w.korean)
+    .slice(0, 6);
+  const overall = str(data.overall, 600);
+  if (!sentences.length && !overall) throw new Error("empty answer");
+  return { sentences, words, natural: str(data.natural, 600), overall };
+}
+
+/* ------------------------------------------------------------------ translate the deck */
+
+export interface TranslatedCard {
+  i: number;
+  meaning: string;
+  exampleTranslation: string;
+}
+
+export function translatePrompt(input: { cards: Array<{ korean: string; meaning: string; example: string }>; lang: TranslationLang }) {
+  const langName = LANG_NAMES[input.lang];
+  return {
+    system: ["TASK: translate", `You write ${langName} meanings for Korean vocabulary flashcards. Translate from the KOREAN word, using the old meaning only to pick the right sense.`].join("\n"),
+    prompt: `Cards:
+${input.cards.map((c, i) => `${i}. ${c.korean} | old meaning: ${c.meaning} | example: ${c.example || "-"}`).join("\n")}
+
+Return JSON: { "cards": [ { "i": 0, "meaning": "${langName} meaning, short, comma-separated if several, same senses as the old meaning", "exampleTranslation": "natural ${langName} translation of the example, or empty string if there is no example" } ] }
+One entry per card, same numbers. Use simple everyday ${langName}.`,
+  };
+}
+
+export function validateTranslated(value: unknown): TranslatedCard[] {
+  const data = asObject(value, "answer");
+  return asArray(data.cards, "cards")
+    .map((raw) => {
+      const c = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+      return { i: Number(c.i), meaning: str(c.meaning, 200), exampleTranslation: str(c.exampleTranslation, 500) };
+    })
+    .filter((c) => Number.isInteger(c.i) && c.i >= 0 && c.meaning);
+}

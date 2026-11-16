@@ -318,8 +318,8 @@ a.compact-row[aria-current="page"] strong { color: var(--accent); }
 .step-title { font-weight: 700; margin: 0; }
 .step-body .muted { margin: 0; font-size: 0.85rem; }
 .step .go { color: var(--accent); font-weight: 700; white-space: nowrap; font-size: 0.85rem; }
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
-.tabs button { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+.tabs button { padding: 10px 4px; font-size: 0.9rem; background: #fff; color: var(--ink); border: 1px solid var(--line); }
 .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .chat { display: grid; gap: 8px; margin-bottom: 12px; }
 .bubble { padding: 10px 12px; border-radius: 14px; max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -339,3 +339,5 @@ a.compact-row[aria-current="page"] strong { color: var(--accent); }
 .lesson-ex p { margin: 0; }
 .big-score { font-size: 2.2rem; font-weight: 700; margin: 0; }
 .wrap-anywhere { overflow-wrap: anywhere; }
+a.card { display: block; }
+.listen-play { font-size: 2rem; min-height: 84px; width: 100%; }
