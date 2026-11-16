@@ -114,6 +114,12 @@ describe("streaming answers", () => {
     expect(fetchMock.mock.calls[3][0]).toContain("gemini-3.5-flash-lite");
   });
 
+  it("uses only main and light unless a middle model is configured", () => {
+    vi.unstubAllEnvs();
+    expect(modelsFor("gemini", "smart", {})).toEqual(["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+    expect(modelsFor("gemini", "fast", {})).toEqual(["gemini-3.5-flash-lite", "gemini-3.8-flash"]);
+  });
+
   it("brings a rested model back, and still tries everything when all are resting", () => {
     const busy = new AiError("x", 502, true);
     markModelDown("a", busy, 1_000);

@@ -59,12 +59,16 @@ export function activeProvider(env: NodeJS.ProcessEnv = process.env): ProviderNa
   return null;
 }
 
-/** Middle Gemini model, tried between the main and the light one. GEMINI_MID_MODEL="" turns it off. */
-const DEFAULT_GEMINI_MID = "gemini-3.6-flash";
+/**
+ * Optional middle Gemini model, tried between the main and the light one. Off by default:
+ * on the free tier gemini-3.6-flash was measured hanging for 7 s+ (Nov 2026), which only
+ * added waiting. Set GEMINI_MID_MODEL to turn it on.
+ */
+const DEFAULT_GEMINI_MID = "";
 
 /**
  * Models to try, in order. Gemini's free tier often answers "high demand" (503) on the
- * newest model, so there are three steps: main → middle → light. Quick tasks go the other way.
+ * newest model, so the order is main → (optional middle) → light. Quick tasks go the other way.
  */
 export function modelsFor(provider: ProviderName, tier: AiTier, env: NodeJS.ProcessEnv = process.env): string[] {
   if (provider === "mock") return ["mock"];
